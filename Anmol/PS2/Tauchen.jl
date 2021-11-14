@@ -7,8 +7,8 @@ using Distributions
 function Tauchen(ρ, σ, Y, μ = 0, m = 3)
     if Y > 1
         ybar = μ / (1 - ρ);
-        ymax = ybar + m * (σ^2 / (1 - ρ^2))^(1 / 2); # maximum y
-        ymin = ybar - m * (σ^2 / (1 - ρ^2))^(1 / 2); # minimum y
+        ymax = ybar + m * (σ / (1 - ρ^2))^(1 / 2); # maximum y
+        ymin = ybar - m * (σ / (1 - ρ^2))^(1 / 2); # minimum y
 
         Δ = (ymax - ymin) / (Y - 1); # distance between each y
         y = ymin:Δ:ymax; # vector of possible states of y
@@ -28,10 +28,10 @@ function Tauchen(ρ, σ, Y, μ = 0, m = 3)
         pdfY = 1;
     end
 
-    return y, pdfY,ρ, σ, Y, μ
+    return y, pdfY
 
 end
 
-g, Pg,ρ, σ, Y, μ = Tauchen(0.95, 1.2/15, 5, log(0.15))
+g, Pg = Tauchen(0.95, (1.2/15)^2, 5, (1 - 0.95) * log(0.15))
 
 
