@@ -32,6 +32,6 @@ function Tauchen(ρ, σ, Y, μ = 0, m = 3)
 
 end
 
-g, Pg = Tauchen(0.95, (1.2/15)^2, 5, (1 - 0.95) * log(0.15))
+
 
 
