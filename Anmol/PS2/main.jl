@@ -100,3 +100,4 @@ plot(c_sim, label = "Simulated path C")
 plot(n_sim, label = "Simulated path N")
 plot(b_sim, label = "Simulated path b")
 plot(τ_sim, label = "Simulated path taxes")
+
