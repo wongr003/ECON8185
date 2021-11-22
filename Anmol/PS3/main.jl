@@ -19,13 +19,10 @@ include("NewtonRoot.jl")
 include("Lin_interpolate.jl")
 
 ## Grid for A and E
-
 a_min = 1.125; # Set a_min to this value to ensure that guess for consumption is not negative
 a_max = 18.0;
-a_size = 5;
-a_vals = range(a_min, a_max, length = a_size);
 
-ϵ_size = 2;
+ϵ_size = 5;
 ϵ_vals, P_ϵ = Tauchen(μ_ϵ, ρ, σ, ϵ_size);
 
 ## Guess r and w (for now)
@@ -41,8 +38,6 @@ l = 0.5; # for now, assume labor is exogenous
 U(c::Real) = (((c^η)*(l^(1-η)))^(1-μ))/(1-μ); # Utility function
 Uc(c) = ForwardDiff.derivative(U, c); # Marginal utility 
 Uc_inv(y) = NewtonRoot(c -> Uc(c) - y, 1); # Inverse of marginal utility
-
-
 
 cj = zeros(a1_size, ϵ_size) # Preallocate memory
 [cj[i,j] = (1+r) * s_EGM[i,j][1] + w * s_EGM[i,j][2] for i in 1:a1_size, j in 1:ϵ_size] # Guess of c
@@ -67,12 +62,18 @@ while distance >= tol && iter <= maxiter
         else 
             abar_vec = abar[:, j];
             abar_low_index = searchsortedlast(abar_vec, a1);
-            abar_high_index = abar_low_index + 1;
+            if abar_low_index == size(abar_vec)[1]
+                abar_high_index = abar_low_index;
+                abar_low_index = abar_low_index - 1;     
+            else
+                abar_high_index = abar_low_index + 1;
+            end
 
             abar_low = abar[abar_low_index, j];
             abar_high = abar[abar_high_index, j];
             cbar_low = cbar[abar_low_index, j];
             cbar_high = cbar[abar_high_index, j];
+            
 
             cj[i,j] = Lin_interpolate(cbar_low, cbar_high, abar_low, abar_high, a1);
         end
@@ -84,15 +85,98 @@ while distance >= tol && iter <= maxiter
 
 end
 
-aj = zeros(a1_size, ϵ_size)
-[aj[i,j] = (1+r)*s_EGM[i,j][1] + w*s_EGM[i,j][2] - cj[i,j] for i in 1:a1_size, j in 1:ϵ_size]
+policy_a = zeros(a1_size, ϵ_size);
+[policy_a[i,j] = (1+r)*s_EGM[i,j][1] + w*s_EGM[i,j][2] - cj[i,j] for i in 1:a1_size, j in 1:ϵ_size];
 
 
 ## Let's plot
 plot(a1_vals, a1_vals, label = "", color = :black, linestyle = :dash)
-plot!(a1_vals, aj[:, 1], label = "ϵ = $(round(ϵ_vals[1], digits = 3))")
-plot!(a1_vals, aj[:, 2], label = "ϵ = $(round(ϵ_vals[2], digits = 3))")
+plot!(a1_vals, policy_a[:, 1], label = "ϵ = $(round(ϵ_vals[1], digits = 3))")
+plot!(a1_vals, policy_a[:, 5], label = "ϵ = $(round(ϵ_vals[5], digits = 3))")
+
+
+## Stationary equlibrium
+λjnext = ones(a1_size, ϵ_size)/(a1_size); # Uniform over a only
+distance = 10;
+tol = 10^(-5);
+maxiter = 10000;
+iter = 1;
+
+while distance >= tol && iter <= maxiter
+    λj = copy(λjnext);
+    
+
+    #### Update first state of a1
+    for j in 1:ϵ_size
+        a_first = a1_vals[1];
+        a_second = a1_vals[2];
+        for k in 1:ϵ_size, l in 1:a1_size
+            astar = policy_a[l,k]
+            if astar >= a_first && astar < a_second
+                λjnext[1,j] = λjnext[1,j] + P_ϵ[k,j]*((a_second-astar)/(a_second-a_first))*λj[l,k];
+            else
+                λjnext[1,j] = λjnext[1,j]
+                
+            end
+        end
+    end
+
+    #### Update last state of a1
+    for j in 1:ϵ_size
+        a_last = a1_vals[end];
+        a_before_last = a1_vals[end-1];
+        for k in 1:ϵ_size, l in 1:a1_size
+            astar = policy_a[l,k]
+            if astar >= a_before_last && astar < a_last
+                λjnext[end,j] = λjnext[end,j] + P_ϵ[k,j]*((astar-a_before_last)/(a_last-a_before_last))*λj[l,k];
+                #println("I'm here first and astar = $astar")
+            else
+                λjnext[end,j] = λjnext[end,j]
+                #println("I'm here second and astar = $astar")
+            end
+        end
+    end
+            
+
+    #### Update rest of the a1 states
+    for i in 2:a1_size-1, j in 1:ϵ_size
+        ak = a1_vals[i];
+        akP = a1_vals[i-1]; 
+        akN = a1_vals[i+1];
+        ϵ1 = ϵ_vals[j];
+
+        for k in 1:ϵ_size, l in 1:a1_size
+            astar = policy_a[l,k]
+            if astar >= akP && astar < ak
+                λjnext[i,j] = λjnext[i,j] + P_ϵ[k,j]*((astar-akP)/(ak-akP))*λj[l,k];
+            elseif astar >= ak && astar < akN
+                λjnext[i,j] = λjnext[i,j] + P_ϵ[k,j]*((akN-astar)/(akN-ak))*λj[l,k];
+            else
+                λjnext[i,j] = λjnext[i,j];
+            end
+        end
+    end
+
+    distance = maximum(abs.(λj - λjnext));
+    iter = iter + 1;
+    println("This is iteration $iter");
+
+end
 
 
 
+endow = [1.0;2.5]
+lamw = 0.6
+
+using LinearAlgebra
+EmpTrans = [1.0-lamw σ ;lamw 1.0-σ]
+dis = LinearAlgebra.eigen(EmpTrans)
+mini = argmin(abs.(dis.values .- 1.0)) 
+stdist = abs.(dis.vectors[:,mini]) / sum(abs.(dis.vectors[:,mini]))
+lbar = dot(stdist,endow)
+states = endow/lbar
+
+@assert sum(EmpTrans[:,1]) == 1.0
+
+guess = vcat(10.0 .+ aGrid,10.0 .+ aGrid)
 
