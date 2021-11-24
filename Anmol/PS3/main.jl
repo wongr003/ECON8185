@@ -2,7 +2,6 @@
 
 ## Packages 
 using ForwardDiff
-using Interpolations
 using Plots
 
 ## Parameters
@@ -19,18 +18,19 @@ include("NewtonRoot.jl")
 include("Lin_interpolate.jl")
 
 ## Grid for A and E
-a_min = 1.125; # Set a_min to this value to ensure that guess for consumption is not negative
+a_min = 1e-10; 
 a_max = 18.0;
 
-ϵ_size = 5;
+ϵ_size = 2;
 ϵ_vals, P_ϵ = Tauchen(μ_ϵ, ρ, σ, ϵ_size);
+ϵ_vals = exp.(ϵ_vals);
 
 ## Guess r and w (for now)
 r = 0.01;
 w = 1.0;
 
 ## EGM
-a1_size = 20; # size of a'
+a1_size = 5; # size of a'
 a1_vals = range(a_min, a_max, length = a1_size);  # Grid for a'
 s_EGM = collect(Iterators.product(a1_vals, ϵ_vals)); # matrix of states A' x E for endogenous grid method
 
@@ -92,7 +92,7 @@ policy_a = zeros(a1_size, ϵ_size);
 ## Let's plot
 plot(a1_vals, a1_vals, label = "", color = :black, linestyle = :dash)
 plot!(a1_vals, policy_a[:, 1], label = "ϵ = $(round(ϵ_vals[1], digits = 3))")
-plot!(a1_vals, policy_a[:, 5], label = "ϵ = $(round(ϵ_vals[5], digits = 3))")
+plot!(a1_vals, policy_a[:, 2], label = "ϵ = $(round(ϵ_vals[2], digits = 3))")
 
 
 ## Stationary equlibrium
