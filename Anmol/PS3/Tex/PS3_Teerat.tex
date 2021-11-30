@@ -1,0 +1,46 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\graphicspath{ {../figs/} }
+
+\title{Problem Set 3: Quantitative Economics (ECON 8185-002)}
+\author{Teerat Wongrattanapiboon}
+\date{30 November 2021}
+
+\begin{document}
+
+	\maketitle
+	
+	\noindent\textbf{Endogenous labor supply}
+	
+		We now incorporate endogenous labor supply in our utility function as follows:
+		$$U(c,l) =  \frac{(c^\eta l^{1-\eta})^{1-\mu}}{1-\mu}$$
+		
+		where $l$ represents leisure. The budget constraint now becomes
+		
+		$$c+a' \leq \epsilon w (1 - l) + (1 + r)a.$$
+		
+		To implement endogenous grid method, as in the case of exogenous labor supply, we start by 		        guessing r and solve for w with
+		
+		$$w(r) = (1-\theta)\left(\frac{r+\delta}{\theta}\right)^{\frac{\theta}{\theta-1}}. $$
+		
+		Then we guess $c^{j}(a',\epsilon') = ra' + w\epsilon'$ as before and use it to solve for 
+		$\bar{l}(c^{j})$ from
+		
+		$$\frac{u_{l}(c,l)}{u_{c}(c,l)} = w\epsilon.$$
+		
+		This is an equation of only one unknown, $l$, given a guess for $c$. Then, for all $(a_{k}',\epsilon_{j})$, we use $\bar{l}(c)$ and $c^{j}$ to solve for 
+		
+		$$\bar{c}(a_{k}', \epsilon_{j}) = U_{c}^{-1}\left[ \beta (1+r) \sum_{\epsilon'}P(\epsilon'|\epsilon) \cdot U_{c}\left[ c^{j}(a_{k}',\epsilon'),\bar{l}(c) \right] \right]$$
+		
+		$$\bar{a}(a_{k}', \epsilon_{j}) = \frac{\bar{c}(a_{k}', \epsilon_{j}) + a_{k}' - w\epsilon_{j}(1-\bar{l})}{1+r}.$$
+		
+		Then we update $c^{j+1}(a,\epsilon)$ as follows:
+		
+		$$c^{j+1}(a,\epsilon) = (1+r)a + w\epsilon \text{ for all } a \leq \bar{a}(a_{0}', \epsilon)$$
+		$$c^{j+1}(a,\epsilon) = \text{ Interpolate } [\bar{c}(a_{k}', \epsilon), \bar{c}(a_{k+1}', \epsilon)] \text{ when } a \in [\bar{a}(a_{k}', \epsilon), \bar{a}(a_{k+1}', \epsilon)]$$
+	
+	
+	
+\end{document}
