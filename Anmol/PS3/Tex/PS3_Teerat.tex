@@ -1,8 +1,10 @@
 \documentclass{article}
 \usepackage[utf8]{inputenc}
+\usepackage[margin=0.5in]{geometry}
 \usepackage{graphicx}
 \usepackage{amsmath}
 \graphicspath{ {../figs/} }
+
 
 \title{Problem Set 3: Quantitative Economics (ECON 8185-002)}
 \author{Teerat Wongrattanapiboon}
@@ -12,7 +14,57 @@
 
 	\maketitle
 	
-	\noindent\textbf{Endogenous labor supply}
+	\noindent\textbf{\Large Exogenous labor supply} \\
+	
+	Assume utility function, its first derivative, and the inverse of the first derivative are 
+	
+	$$U(c) = \frac{c^{1-\gamma}}{1-\gamma},$$
+	$$Uc(c) = c^{-\gamma},$$
+	$$Uc^{-1}(x) = x^{-\frac{1}{\gamma}}.$$
+	
+	Household's budget constraint and the skill process are
+	
+	$$c_{t} + a_{t+1} \leq e_{i}w + (1+r)a_{t}.$$
+	$$a_{t+1} \geq \underline{a} = 0.$$
+	
+	The skill process is
+	
+	$$\log(e_{i,t}) = \rho\log(e_{i,t-1}) + \sigma \epsilon_{i,t}.$$
+	
+	The production function is 
+	
+	$$Y_{t} = F(K{t},N_{t}) = AK_{t}^{\theta}N_{t}^{1-\theta}$$
+	
+	It is useful to set $A$ such that steady state $Y = 1$. We will use endogenous grid method to solve for stationary equilibrium for this economy. The algorithm is as follows: \\ 
+	
+	1) Guess r \\
+		
+	2) Solve for w with \\
+	
+	$$w(r) = (1-\theta)\left(\frac{r+\delta}{\theta}\right)^{\frac{\theta}{\theta-1}}. $$
+	
+	3) Given a grid for $(a,\epsilon)$, we first guess $c^{j}(a,\epsilon) = ra + w\epsilon$. \\
+	
+	4) Then, for all $(a_{k}',\epsilon_{j})$, we substitute a guess for the consumption tomorrow, $c^{j}(a_{k}',\epsilon_{j})$, in the Euler equation to solve for current consumption
+		
+		$$\bar{c}(a_{k}', \epsilon_{j}) = U_{c}^{-1}\left[ \beta (1+r) \sum_{\epsilon'}P(\epsilon'|\epsilon_{j}) \cdot U_{c}\left[ c^{j}(a_{k}',\epsilon') \right] \right].$$
+		
+		We then obtain current assets given consumption today defined on asset grid tomorrow as follows:
+		
+		$$\bar{a}(a_{k}', \epsilon_{j}) = \frac{\bar{c}(a_{k}', \epsilon_{j}) + a_{k}' - w\epsilon_{j}}{1+r}.$$
+		
+	5) Then we update $c^{j+1}(a,\epsilon)$ as follows:
+		
+		$$c^{j+1}(a,\epsilon) = (1+r)a + w \epsilon  \text{ for all } a \leq \bar{a}(a_{1}', \epsilon)$$
+		$$c^{j+1}(a,\epsilon) = \text{ Interpolate } [\bar{c}(a_{k}', \epsilon), \bar{c}(a_{k+1}', \epsilon)] \text{ when } a \in [\bar{a}(a_{k}', \epsilon), \bar{a}(a_{k+1}', \epsilon)]$$
+		
+		Note here that $(a_{k}', \epsilon_{j})$ are on the same grid as $(a,\epsilon)$. The first case is when the borrowing constraint is binding.  \\
+		
+	6) Repeat step 4 and 5 until $c^{j}(a,\epsilon)$ converged. Observe that we no longer need a root finding procedure, but still need to interpolate the optimal policy on our defined grids in this EGM algorithm. \\
+		
+	 
+	
+	\noindent\textbf{\Large Endogenous labor supply} \\
 	
 		We now incorporate endogenous labor supply in our utility function as follows:
 		$$U(c,l) =  \frac{(c^\eta l^{1-\eta})^{1-\mu}}{1-\mu}$$
@@ -21,24 +73,34 @@
 		
 		$$c+a' \leq \epsilon w (1 - l) + (1 + r)a.$$
 		
-		To implement endogenous grid method, as in the case of exogenous labor supply, we start by 		        guessing r and solve for w with
+		To implement endogenous grid method, as in the case of exogenous labor supply, we start by \\ 
+		
+		1) Guess r \\
+		
+		2) Solve for w with \\
 		
 		$$w(r) = (1-\theta)\left(\frac{r+\delta}{\theta}\right)^{\frac{\theta}{\theta-1}}. $$
 		
-		Then we guess $c^{j}(a',\epsilon') = ra' + w\epsilon'$ as before and use it to solve for 
-		$\bar{l}(c^{j})$ from
+		3) Then we guess $c^{j}(a,\epsilon) = ra + w\epsilon$ as before. \\
 		
-		$$\frac{u_{l}(c,l)}{u_{c}(c,l)} = w\epsilon.$$
+		4) Use this guess to solve for $\bar{l}(a, \epsilon)$ from
 		
-		This is an equation of only one unknown, $l$, given a guess for $c$. Then, for all $(a_{k}',\epsilon_{j})$, we use $\bar{l}(c)$ and $c^{j}$ to solve for 
+		$$\frac{u_{l}(c^{j}(a,\epsilon),l)}{u_{c}(c^{j}(a,\epsilon),l)} = \frac{(c^\eta l^{1-\eta})^{-\mu}c^{\eta}(1-\eta)l^{-\eta} }{(c^\eta l^{1-\eta})^{-\mu}l^{1-\eta}(\eta) c^{\eta-1}} = (\frac{1-\eta}{\eta}) \cdot \frac{c}{l} = w\epsilon.$$
 		
-		$$\bar{c}(a_{k}', \epsilon_{j}) = U_{c}^{-1}\left[ \beta (1+r) \sum_{\epsilon'}P(\epsilon'|\epsilon) \cdot U_{c}\left[ c^{j}(a_{k}',\epsilon'),\bar{l}(c) \right] \right]$$
+		Note that above is an equation of only one unknown, $l$, given a guess for $c$, $c^{j}(a,\epsilon)$. \\
 		
-		$$\bar{a}(a_{k}', \epsilon_{j}) = \frac{\bar{c}(a_{k}', \epsilon_{j}) + a_{k}' - w\epsilon_{j}(1-\bar{l})}{1+r}.$$
 		
-		Then we update $c^{j+1}(a,\epsilon)$ as follows:
+		5) Then, for all $(a_{k}',\epsilon_{j})$, we use $\bar{l}(a_{k}',\epsilon_{j})$ and $c^{j}(a_{k}',\epsilon_{j})$ to solve for 
 		
-		$$c^{j+1}(a,\epsilon) = (1+r)a + w\epsilon \text{ for all } a \leq \bar{a}(a_{0}', \epsilon)$$
+		$$\bar{c}(a_{k}', \epsilon_{j}) = U_{c}^{-1}\left[ \beta (1+r) \sum_{\epsilon'}P(\epsilon'|\epsilon_{j}) \cdot U_{c}\left[ c^{j}(a_{k}',\epsilon'),\bar{l}(a_{k}',\epsilon') \right] \right]$$
+		
+		$$\bar{a}(a_{k}', \epsilon_{j}) = \frac{\bar{c}(a_{k}', \epsilon_{j}) + a_{k}' - w\epsilon_{j}(1-\bar{l}(a_{k}',\epsilon_{j}))}{1+r}.$$
+		
+		Note here that $(a_{k}', \epsilon_{j})$ are on the same grid as $(a,\epsilon)$. \\
+		
+		6) Then we update $c^{j+1}(a,\epsilon)$ as follows:
+		
+		$$c^{j+1}(a,\epsilon) = (1+r)a + w \epsilon (1- \bar{l}(a,\epsilon)) \text{ for all } a \leq \bar{a}(a_{1}', \epsilon)$$
 		$$c^{j+1}(a,\epsilon) = \text{ Interpolate } [\bar{c}(a_{k}', \epsilon), \bar{c}(a_{k+1}', \epsilon)] \text{ when } a \in [\bar{a}(a_{k}', \epsilon), \bar{a}(a_{k+1}', \epsilon)]$$
 	
 	

@@ -1,9 +1,12 @@
-include("functions.jl")
+include("functions_cleaner.jl")
 
-r0 = 0.01;
-AA0, cpol0 = AiyagariEGM(r0);
-abar0 = zeros(length(cpol0));
+hh = Household();
+r_guess = 0.01;
+cpol, apol = iterate_egm(hh;r=r_guess)
 
-polC_ss,polA_ss,λ_ss,Ar_ss,K_ss,r_ss = equilibriumEGM(AA0,cpol0,abar0);
+plot(hh.Amat[:,1], hh.Amat[:,1], label = "", color = :black, linestyle = :dash)
+plot!(hh.Amat[:,1], apol[:,1], label = "ϵ = $(round(hh.Ymat[1,1], digits = 3))")
+plot!(hh.Amat[:,1], apol[:,5], label = "ϵ = $(round(hh.Ymat[1,5], digits = 3))")
 
-
+r = market_clearing(hh, r = r_guess)
+plot_market_clearing(hh)

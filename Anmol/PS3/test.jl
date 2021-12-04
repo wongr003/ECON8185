@@ -1,4 +1,4 @@
-include("functions.jl")
+include("functions_endoL.jl")
 include("NewtonRoot.jl")
 
 ## Test Code ##
@@ -7,6 +7,7 @@ include("NewtonRoot.jl")
 r0 = 0.015;
 AA0, cpol0 = AiyagariEGM(r0);
 abar0 = zeros(length(cpol0));
+cbar1 = EGM(AA0,cpol0,abar0)
 cpol_EGM, apol_EGM = SolveEGM(AA0,cpol0,abar0);
 
 plot(AA0.aGrid, AA0.aGrid, label = "", color = :black, linestyle = :dash)
@@ -56,15 +57,17 @@ plot!(K_vals,r_vals)
 
 # Incorporate elastic labor supply
 using ForwardDiff
-U(c,l) = (((c^0.3)*((l)^(1-0.3)))^(1-1.5))/(1-1.5);
+U(c,l) = (c^(1-0.7)/(1-0.7))-((1-l)^(1+0.3)/(1+0.3));
 Uc0(c,l) = ForwardDiff.derivative(c -> U(c,l),c);
 Uc = l -> Uc0(c,l)
 Ul0(c,l) = ForwardDiff.derivative(l -> U(c,l), l);
 Ul = l -> Ul0(c,l)
 
-c = 2.0
-NewtonRoot(l -> Ul(l)/Uc(l) - 2.0, 1)
-
+c = 0.38072170674937644
+Uc(0.8)
+Ul(0.9)
+NewtonRoot(l -> Ul(l)/Uc(l) - 0.5, 1)
+Solve_l(c) = NewtonRoot(l -> Ul(l)/Uc(l) - w*ϵ, 1)
 
 #F(c,l) = c^2*l^2
 
@@ -75,3 +78,9 @@ NewtonRoot(l -> Ul(l)/Uc(l) - 2.0, 1)
 
 #c = 1.5
 #NewtonRoot(l -> Fl_new(l)/Fc_new(l) - 2.0, 1)
+
+ϵ_test = 3.08
+c_test = 3.6
+
+
+l_test = (2.33*c_test)/(1.17*ϵ_test)

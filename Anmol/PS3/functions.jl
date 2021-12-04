@@ -123,13 +123,27 @@ function EGM(model::AiyagariModel,
     U(c) = (((c^η)*(0.5^(1-η)))^(1-μ))/(1-μ); # Utility function, for now, assume labor is exogenous
     Uc(c) = ForwardDiff.derivative(U, c); # Marginal utility 
     Uc_inv(y) = NewtonRoot(c -> Uc(c) - y, 1); # Inverse of marginal utility
+    cbar = zeros(length(cpol));
+    EUc = zeros(length(cpol));
 
-    Uc_cj = Uc.(cpol)
-    Uc_cj = reshape(Uc_cj, na, nϵ);
+    ############## Matrix Multiplication approach
+    #Uc_cj = Uc.(cpol)
+    #Uc_cj = reshape(Uc_cj, na, nϵ);
+    #EUc = (P_ϵ*Uc_cj')';
+    #EUc = reshape(EUc, na*nϵ);
+    #cbar = Uc_inv.((1+r)*β*EUc);
 
-    EUc = (P_ϵ*Uc_cj')';
-    EUc = reshape(EUc, na*nϵ);
-    cbar = Uc_inv.((1+r)*β*EUc);
+    # Compute cbar (brute force approach)
+    for i = 1:na
+        for j = 1:nϵ
+            ij = (j-1)*na+i
+            for k = 1:nϵ
+                ik = (k-1)*na+i
+                EUc[ij] = EUc[ij]+P_ϵ[j,k]*Uc(cpol[ik]);
+            end
+            cbar[ij] = Uc_inv(β*(1+r)*EUc[ij]);
+        end
+    end
 
     # Compute abar
     for ai = 1:na

@@ -63,7 +63,7 @@ function AiyagariEGM(
     ϵGrid = exp.(collect(ϵGrid));
 
     ########### Initial guess for consumption 
-    cGuess = r*aGridl + w*repeat(ϵGrid, inner = na)
+    cGuess = (1+r)*aGridl + w*repeat(ϵGrid, inner = na)
     
     return AiyagariModel(r,w,params,aGrid,aGridl,na,ϵGrid,nϵ,P_ϵ), cGuess
 end
@@ -72,12 +72,13 @@ function interpC(model::AiyagariModel,
                  cbar::AbstractArray,
                  abar::AbstractArray,
                  a_tmr::T,
+                 lbar::T,
                  ϵ::T) where {T <: Real}
 
     @unpack r,w,na = model
 
     if a_tmr <= abar[1]
-        cbar_interp = (1+r)*a_tmr + w*ϵ;
+        cbar_interp = (1+r)*a_tmr + w*ϵ*(1-lbar);
     else
         np = searchsortedlast(abar,a_tmr);
 
@@ -95,17 +96,19 @@ end
 function updateC(model::AiyagariModel,
                  cbar::AbstractArray,
                  abar::AbstractArray,
+                 lbar::AbstractArray,
                  cbar_interp::AbstractArray)
 
     @unpack r,w,na,nϵ,aGridl,ϵGrid = model
 
     cbar = reshape(cbar,na,nϵ);
     abar = reshape(abar,na,nϵ);
+    lbar = reshape(lbar,na,nϵ);
 
     for ϵi = 1:nϵ
         for ai = 1:na
             aϵi = (ϵi-1)*na+ai
-            cbar_interp[aϵi] = interpC(model,cbar[:,ϵi],abar[:,ϵi],aGridl[aϵi],ϵGrid[ϵi]) 
+            cbar_interp[aϵi] = interpC(model,cbar[:,ϵi],abar[:,ϵi],lbar[aϵi],aGridl[aϵi],ϵGrid[ϵi]) 
         end
     end
 
@@ -122,31 +125,53 @@ function EGM(model::AiyagariModel,
 
     U(c,l) = (((c^η)*(l^(1-η)))^(1-μ))/(1-μ); # Utility function with elastic labor supply, l here is leisure
     Uc0(c,l) = ForwardDiff.derivative(c -> U(c,l),c); 
-    Uc = l -> Uc0(c,l); # Marginal utility for consumption
+    Uc = l -> Uc0(c,l); # Marginal utility for consumption (only function of l)
     Ul0(c,l) = ForwardDiff.derivative(l -> U(c,l), l);
-    Ul = l -> Ul0(c,l); # Marginal utility for leisure
+    Ul = l -> Ul0(c,l); # Marginal utility for leisure (only function of l)
 
-    Uc_inv(y) = NewtonRoot(c -> Uc(c) - y, 1); # Inverse of marginal utility
+    # Preallocate memories
+    lbar = zeros(length(cpol));
+    cbar = zeros(length(cpol));
+    EUc = zeros(length(cpol));
+    c = 0.0;
 
-    Uc_cj = Uc.(cpol)
-    Uc_cj = reshape(Uc_cj, na, nϵ);
+    # Compute lbar (lbar greater than 1??)
+    for i = 1:na
+        for j = 1:nϵ
+            ij = (j-1)*na+i;
+            c = cpol[ij];
+            println("c = $c, w = $w, shock = $(ϵGrid[j])")
+            lbar[ij] = NewtonRoot(l -> Ul(l)/Uc(l) - w*ϵGrid[j], 0.75);
+            println("lbar = $(lbar[ij])")
+        end
+    end
 
-    EUc = (P_ϵ*Uc_cj')';
-    EUc = reshape(EUc, na*nϵ);
-    cbar = Uc_inv.((1+r)*β*EUc);
+    # Compute cbar
+    cj = 0.0;
+    for i = 1:na
+        for j = 1:nϵ
+            ij = (j-1)*na+i
+            for k = 1:nϵ
+                ik = (k-1)*na+i
+                cj = cpol[ik]
+                EUc[ij] = EUc[ij]+P_ϵ[j,k]*Uc(lbar[ik]);
+            end
+            cbar[ij] = Uc_inv(β*(1+r)*EUc[ij]);
+        end
+    end
 
     # Compute abar
     for ai = 1:na
         for ϵi = 1:nϵ
             aϵi = (ϵi-1)*na+ai
-            abar[aϵi] = (cbar[aϵi]+aGridl[aϵi]-w*ϵGrid[ϵi])/(1+r)
+            abar[aϵi] = (cbar[aϵi]+aGridl[aϵi]-w*ϵGrid[ϵi])*(1-lbar[aϵi])/(1+r)
         end
     end
 
     cbar_interp = zeros(length(cbar))
-    cbar_interp = updateC(model,cbar,abar,cbar_interp)
+    cbar_interp = updateC(model,cbar,abar,lbar,cbar_interp)
 
-    return cbar_interp
+    return cbar
 end
 
 function SolveEGM(model::AiyagariModel,
