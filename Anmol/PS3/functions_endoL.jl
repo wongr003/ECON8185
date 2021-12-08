@@ -1,229 +1,195 @@
 ## Packages
-using ForwardDiff
-using UnPack
+using Parameters
+using Interpolations
 using Plots
 using LinearAlgebra
+using BenchmarkTools
 
 ## Files
 include("Tauchen.jl")
 include("NewtonRoot.jl")
 
-################################### Model types #########################
-mutable struct AiyagariParameters{T <: Real}
-    η::T
-    μ::T
-    β::T
-    δ::T
-    θ::T
-    ρ::T
-    σ::T
-    μ_ϵ::T
+################################### Create the Household instance #########################
+Household = @with_kw (na = 10, # number of asset grid
+    amax = 40.0, # asset max
+    β = 0.98, # discount factor
+    θ = 0.3, #capital share 
+    δ = 0.075, # depreciation rate
+    γ = 2.0, # inverse elasticity of substitution
+    bc = 0, # borrowing constraint (must be weakly negative)
+    ρ = 0.6, # autocorr of income process
+    nϵ = 5, # number of states for income process
+    σ = 0.3, # stand. dev. of income process
+    μ_ϵ = 0.0, # mean of income process
+    ϵGrid = exp.(Tauchen(μ_ϵ, ρ, σ, nϵ)[1]), # grid for income process
+    P_ϵ = Tauchen(μ_ϵ, ρ, σ, nϵ)[2], # transition matrix
+    Amat = repeat(collect(LinRange(sqrt(bc), sqrt(amax), na)).^2,1,nϵ), # asset grid
+    Ymat = repeat(ϵGrid',na,1), # income grid
+    ϕ = 0.8, # disutility factor
+    η = 2.0) # inverse frisch elasticity for labor supply
+
+################################### Useful functions used in main EGM function #########################
+# Marginal utilities and their Inverse
+Uc(c,γ) = c.^(-γ);
+invUc(x,γ) = x.^(-1/γ);
+Ul(l,ϕ,η) = ϕ.*l.^η;
+invUl(x,ϕ,η) = (x./ϕ).^(1/η);
+
+# Euler equation to get current consumption, given future interest rate and future consumption grid
+function getc(γ,β,P_ϵ;rnext,cnext)
+    Ucnext = β.*(1+rnext).*Uc(cnext,γ)*P_ϵ'; # future marginal utility
+    c = invUc(Ucnext, γ); # current consumption
+    return c
 end
 
-mutable struct AiyagariModel{T <: Real, I <: Integer}
-    r::T
-    w::T
-    params::AiyagariParameters{T}
-    aGrid::Array{T,1} # Policy grid
-    aGridl::Array{T,1} # Grid for a with different ϵ stacked up
-    na::I
-    ϵGrid::Array{T,1} # Labor shock grid
-    nϵ::I
-    P_ϵ::Array{T,2} # Transition matrix for labor shock process
+# Intratemporal FOC to get labor given current consumption
+function getl(c,ϵ,γ,ϕ,η,w)
+    l = invUl(w.*ϵ.*(Uc(c,γ)),ϕ,η);
+    return l
 end
 
-function AiyagariEGM(
-    r::T,
-    η::T = 0.3,
-    μ::T = 1.5,
-    β::T = 0.98,
-    δ::T = 0.075,
-    θ::T = 0.3,
-    ρ::T = 0.6,
-    σ::T = 0.3,
-    μ_ϵ::T = 0.0,
-    amin::T = 0.0,
-    amax::T = 40.0,
-    na::I = 10,
-    nϵ::I = 5) where {T <: Real, I <: Integer}
+# Obtain current assets, given consumption today defined on asset grid tomorrow
+geta(Amat,Ymat,γ,ϕ,η;r,w,c) = 1/(1+r).*(c.+Amat.-w.*Ymat.*getl(c,Ymat,γ,ϕ,η,w))
 
-    ########### Parameters
-    params = AiyagariParameters(η,μ,β,δ,θ,ρ,σ,μ_ϵ);
+################################### Main EGM function #########################
+# This is the main EGM function. It iterates on the Euler equation c_{t} = β*(1+r_{t+1})*E_{t}[c_{t+1}],
+# given a guess for the consumption policy function, c_{t+1} (cnext in the function).
+# Note that we no longer need a root finding procedure, but still need to interpolate the optimal policy 
+# on our defined grid
+function egm(hh;w,cnext,cbinding,r,rnext)
+"""
+    use endogenous grid method to obtain c_{t} and a_{t} given c_{t+1} 'cnext'
 
-    ########### Implied wage
-    w = (1-θ)*((r+δ)/θ)^(θ/(θ-1));
+    #### Fields
 
-    ########### Policy grid
-    aGrid = collect(LinRange(sqrt(amin), sqrt(amax), na));
-    aGrid = aGrid.^2;
-    aGridl = repeat(aGrid, nϵ)
+    - 'hh': household tuple
+    - 'w': wage rate
+    - 'cnext': time t+1 consumption grid
+    - 'cbinding': consumption grid when borrowing constraint binds
+    - 'r': interest rate at time t
+    - 'rnext': interest rate at time t+1
 
-    ########### Transition
-    ϵGrid, P_ϵ = Tauchen(μ_ϵ, ρ, σ, nϵ);
-    ϵGrid = exp.(collect(ϵGrid));
+    #### Returns
+    - 'c': time t consumption grid
+    - 'anext': time t policy function for saving
+    - 'l': time t labor function
+"""
 
-    ########### Initial guess for consumption 
-    cGuess = (1+r)*aGridl + w*repeat(ϵGrid, inner = na)
+    @unpack γ,β,P_ϵ,Amat,Ymat,nϵ,ϕ,η = hh
+
+    # Current policy functions on current grid
+    c = getc(γ,β,P_ϵ;rnext = rnext, cnext = cnext);
+    a = geta(Amat,Ymat,γ,ϕ,η;r=r,w=w,c=c);
+
+    cnonbinding = similar(Amat);
+
+    # Interpolate consumption policy function for current grid
+    for i = 1:nϵ
+        cnonbinding[:,i] = LinearInterpolation(a[:,i], c[:,i], extrapolation_bc = Line()).(Amat[:,i]);
+    end
+
+    # update elements of consumption policy when borrowing constraint binds
+    # a[1,j] is the level of current assets that induces the borrowing constraint to bind exactly.
+    # Therefore, whenever current assets are below a[1,j], the borrowing constraint will be STRICTLY binding.
+    # Note that this uses the monotonicity of the policy rule.
+
+    for j = 1:nϵ
+        c[:,j] = (Amat[:,j] .> a[1,j]) .*cnonbinding[:,j] .+ (Amat[:,j] .<= a[1,j]).*cbinding[:,j];
+    end
+
+    l = getl(c,Ymat,γ,ϕ,η,w);
+        
+    # update saving policy function with new consumption function
+    anext = @. (1+r)*Amat+w*Ymat*l-c;
     
-    return AiyagariModel(r,w,params,aGrid,aGridl,na,ϵGrid,nϵ,P_ϵ), cGuess
+    return c,anext,l
 end
 
-function interpC(model::AiyagariModel,
-                 cbar::AbstractArray,
-                 abar::AbstractArray,
-                 a_tmr::T,
-                 lbar::T,
-                 ϵ::T) where {T <: Real}
+# This is the function that iterates on the EGM function above to solve for the optimal policy rule.
+function iterate_egm(hh,A;r,tol=1e-8,maxiter=1000)
+"""
+    iterates on EGM method until c converged
 
-    @unpack r,w,na = model
+    #### Fields
 
-    if a_tmr <= abar[1]
-        cbar_interp = (1+r)*a_tmr + w*ϵ*(1-lbar);
-    else
-        np = searchsortedlast(abar,a_tmr);
+    - 'hh': household tuple
+    - 'r': interest rate 
 
-        (np < na) ? np = np :
-        np = na-1
+    #### Returns
+    - 'c': policy function for consumption, given r
+    - 'anext': policy function for saving, given r
+    - 'l': policy function for labor, given r
+"""
+    
+    @unpack δ,θ,Amat,Ymat,bc,γ,ϕ,η,na,nϵ = hh
 
-        abar_l, abar_h = abar[np], abar[np+1];
-        cbar_l, cbar_h = cbar[np], cbar[np+1];
-        cbar_interp = cbar_l+(cbar_h-cbar_l)/(abar_h-abar_l)*(a_tmr-abar_l); # y = y0 + (y1-y0)/(x1-x0)*(x-x0)
+    w = A*(1-θ)*((r+δ)/(A*θ))^(θ/(θ-1)); # wage rate given guess for r
+
+    cnext = @. r*Amat+w*Ymat; # initial guess for policy function iteration
+
+    # get consumption when borrowing constraint binds
+    function getcBinding(a,c,ϵ)
+        @. (1+r)*a+w*ϵ*getl(c,ϵ,γ,ϕ,η,w)-bc-c;
     end
 
-    return cbar_interp
-end
+    cbinding = similar(Amat);
 
-function updateC(model::AiyagariModel,
-                 cbar::AbstractArray,
-                 abar::AbstractArray,
-                 lbar::AbstractArray,
-                 cbar_interp::AbstractArray)
-
-    @unpack r,w,na,nϵ,aGridl,ϵGrid = model
-
-    cbar = reshape(cbar,na,nϵ);
-    abar = reshape(abar,na,nϵ);
-    lbar = reshape(lbar,na,nϵ);
-
-    for ϵi = 1:nϵ
-        for ai = 1:na
-            aϵi = (ϵi-1)*na+ai
-            cbar_interp[aϵi] = interpC(model,cbar[:,ϵi],abar[:,ϵi],lbar[aϵi],aGridl[aϵi],ϵGrid[ϵi]) 
-        end
-    end
-
-    return cbar_interp
-end
-
-
-function EGM(model::AiyagariModel,
-             cpol::AbstractArray,
-             abar::AbstractArray)
-
-    @unpack r,w,params,na,nϵ,aGridl,P_ϵ,ϵGrid = model
-    @unpack β,η,μ = params
-
-    U(c,l) = (((c^η)*(l^(1-η)))^(1-μ))/(1-μ); # Utility function with elastic labor supply, l here is leisure
-    Uc0(c,l) = ForwardDiff.derivative(c -> U(c,l),c); 
-    Uc = l -> Uc0(c,l); # Marginal utility for consumption (only function of l)
-    Ul0(c,l) = ForwardDiff.derivative(l -> U(c,l), l);
-    Ul = l -> Ul0(c,l); # Marginal utility for leisure (only function of l)
-
-    # Preallocate memories
-    lbar = zeros(length(cpol));
-    cbar = zeros(length(cpol));
-    EUc = zeros(length(cpol));
-    c = 0.0;
-
-    # Compute lbar (lbar greater than 1??)
     for i = 1:na
         for j = 1:nϵ
-            ij = (j-1)*na+i;
-            c = cpol[ij];
-            println("c = $c, w = $w, shock = $(ϵGrid[j])")
-            lbar[ij] = NewtonRoot(l -> Ul(l)/Uc(l) - w*ϵGrid[j], 0.75);
-            println("lbar = $(lbar[ij])")
+            cbinding[i,j] = NewtonRoot(c -> getcBinding(Amat[i,j],c,Ymat[i,j]),1.0);
         end
     end
 
-    # Compute cbar
-    cj = 0.0;
-    for i = 1:na
-        for j = 1:nϵ
-            ij = (j-1)*na+i
-            for k = 1:nϵ
-                ik = (k-1)*na+i
-                cj = cpol[ik]
-                EUc[ij] = EUc[ij]+P_ϵ[j,k]*Uc(lbar[ik]);
-            end
-            cbar[ij] = Uc_inv(β*(1+r)*EUc[ij]);
+    iter = 1;
+
+    for i = 1:maxiter
+        #println("iteration: $i"," ")
+        c = egm(hh;w=w,rnext=r,r=r,cnext=cnext,cbinding=cbinding)[1];
+        if norm(c-cnext,Inf)<tol
+            #println("Solved for policy functions in $i iterations")
+            return egm(hh;w=w,rnext=r,r=r,cnext=cnext,cbinding=cbinding)
+        else
+            cnext=c;
+            iter = iter+1;
         end
     end
 
-    # Compute abar
-    for ai = 1:na
-        for ϵi = 1:nϵ
-            aϵi = (ϵi-1)*na+ai
-            abar[aϵi] = (cbar[aϵi]+aGridl[aϵi]-w*ϵGrid[ϵi])*(1-lbar[aϵi])/(1+r)
-        end
-    end
-
-    cbar_interp = zeros(length(cbar))
-    cbar_interp = updateC(model,cbar,abar,lbar,cbar_interp)
-
-    return cbar
+    error("Does not converged")
 end
 
-function SolveEGM(model::AiyagariModel,
-                  cCurrent::AbstractArray,
-                  abar::AbstractArray,
-                  tol = 1e-10)
+################################### Equilibrium #########################
+# This function solves for the market clearing interest rate in the Aiyagari model. It uses the EGM routines for the 
+# policy functions and Young's method for the distribution, as well as a bisection procedure to obtain interest rate.
+function MakeTransMat(hh,apol)
+"""
+    constructs transition matrix Q for asset-skill distribution using Young's methood
 
-    @unpack r,w,na,aGridl,nϵ,ϵGrid = model
+    #### Fields
 
-    for i = 1:10000
-        cNext = EGM(model,cCurrent,abar)
-        if (i-1) % 50 == 0
-            test = maximum(abs.(cCurrent - cNext));
-            #println("iteration: $i"," ")
-            if test < tol
-                #println("Solved in $i iterations")
-                break
-            end
-        end
-        cCurrent = copy(cNext);
-    end
+    - 'hh': household tuple
+    - 'apol': policy function for savings, array na × nϵ
 
-    apol = zeros(na*nϵ)
-    for ai = 1:na
-        for ϵi = 1:nϵ
-            aϵi = (ϵi-1)*na+ai
-            apol[aϵi] = (1+r)*aGridl[aϵi] + w*ϵGrid[ϵi] - cCurrent[aϵi] 
-        end
-    end
+    #### Returns
+    - 'Qmat': (na*nϵ)×(na*nϵ) array 
+"""
 
-    return cCurrent, apol
-end
-
-function MakeTransMatEGM(model::AiyagariModel,
-                         apol::AbstractArray,
-                         Qmat)
+    @unpack na,nϵ,Amat,P_ϵ = hh     
     
-    @unpack na,nϵ,aGridl,P_ϵ = model
-    apol = reshape(apol,na,nϵ);   
-    aGridl = reshape(aGridl,na,nϵ);                  
+    # preallocate memory for the transition matrix
+    Qmat = zeros(na*nϵ,na*nϵ);
+    
     for i = 1:na
         for j = 1:nϵ
             aStar = apol[i,j];
-            l = searchsortedlast(aGridl[:,j],aStar);
+            l = searchsortedlast(Amat[:,j],aStar);
 
             (l > 0 && l < na) ? l = l :
-                (l == na) ? l = na-1 :
-                    l = 1
+            (l == na) ? l = na-1 :
+            l = 1
 
-            p = (aStar-aGridl[l,j])/(aGridl[l+1,j]-aGridl[l,j]);
+            p = (aStar-Amat[l,j])/(Amat[l+1,j]-Amat[l,j]);
             p = min(max(p,0.0),1.0);
-            
+
             sj = (j-1)*na;
             for k = 1:nϵ
                 sk = (k-1)*na;
@@ -236,12 +202,29 @@ function MakeTransMatEGM(model::AiyagariModel,
     return Qmat
 end
 
-function StationaryDistributionEGM(Qmat,λCurrent,tol = 1e-10)
-    for i = 1:10000
+# This functions solves for the stationary distribution of assets given the matrix Q
+function StationaryDistribution(hh,Qmat,tol=1e-10,maxiter=1000)
+"""
+    iterate on λ_{j+1} = Q*λ_{j} until converged
+
+    #### Fields
+
+    - 'hh': household tuple
+    - 'Qmat': transition matrix, (na*nϵ)×(na*nϵ)
+
+    #### Returns
+    - 'λCurrent': array (na*nϵ) of stationary distribution of people 
+"""
+
+    @unpack na,nϵ = hh
+
+    λCurrent = ones(na*nϵ);
+    λCurrent = λCurrent./sum(λCurrent);
+
+    for i = 1:maxiter
         λnext = Qmat*λCurrent
         if (i-1) % 50 == 0
             test = maximum(abs.(λCurrent - λnext));
-            #println("iteration: $i"," ")
             if test < tol
                 #println("Solved in $i iterations")
                 break
@@ -253,48 +236,93 @@ function StationaryDistributionEGM(Qmat,λCurrent,tol = 1e-10)
     return λCurrent
 end
 
-function equilibriumEGM(model::AiyagariModel,
-                        cpol::AbstractArray,
-                        abar::AbstractArray,
-                        tol = 1e-5,maxr = 50) 
+# This function computes steady state of aggregate capital supply
+function getAggs(hh,A;r)
+"""
+    compute aggregate supply of capital: A(r,w) = ∫a'(a,ϵ;r,w)dλ(a,ϵ;r) = ā' ⋅ λ̄
 
-    @unpack params,na,nϵ,aGridl,ϵGrid = model
-    @unpack β,δ,θ = params
+    #### Fields
 
-    Ar = 0.0;
-    
-    λ_init = zeros(na*nϵ) .+ 1/(na*nϵ);
-    ur,lr = 1/β - 1,-δ
-    
+    - 'hh': household tuple
+    - 'r': interest rate
 
-    for rit = 1:maxr
-        cstar, apol = SolveEGM(model,cpol,abar);
+    #### Returns
+    - 'K/L': aggregate supply of capital per capita
+"""
+    @unpack β,Ymat = hh
+    @assert r < 1/β-1 "r too large for convergence"
 
-        Qmat = zeros(na*nϵ, na*nϵ);
-        Qmat = MakeTransMatEGM(model,apol,Qmat);
-        λ = StationaryDistributionEGM(Qmat,λ_init);
+    cpol,apol,lpol = iterate_egm(hh,A;r=r); # get converged policy function for savings
+    Qmat = MakeTransMat(hh,apol); # get transition matrix
+    λ = StationaryDistribution(hh,Qmat); # get invariant distribution
 
-        Ar = dot(aGridl, λ);
-        Nbar = dot(λ, repeat(ϵGrid, inner = na));
-        K = ((model.r+δ)/(θ*Nbar^(1-θ)))^(1/(θ-1));
-    
-        println("This is iteration $rit, and r = $(model.r)")
+    K = reshape(apol,(length(λ),1));    
+    K = sum(K.*λ);
+    N = reshape(lpol.*Ymat,(length(λ),1));
+    N = sum(N.*λ);
 
-        if (Ar > K)
-            ur = model.r;
-            model.r = 1.0/2.0*(lr+ur);
+    return K,N
+end
+
+# This function computes r that clears the market
+function market_clearing(hh,A;r=0.015,tol=1e-5,maxiter=20,bisection_param=0.8)
+"""
+    bisection procedure until r converged.
+
+    #### Fields
+
+    - 'hh': household tuple
+
+    #### Returns
+    - 'r': equilibrium interest rate
+    """
+
+    @unpack θ,δ = hh
+
+    for iter = 1:maxiter
+        println("r=$r: ")
+        Ksupply,N = getAggs(hh,A;r=r);
+         
+        rsupply = A*θ*(Ksupply/N)^(θ-1) - δ;
+        
+        if abs(r-rsupply)<tol
+            Y = A*(Ksupply^θ)*(N)^(1-θ);
+            return (r+rsupply)/2,Y
         else
-            lr = model.r;
-            model.r = 1.0/2.0*(lr+ur);
-        end
-        println("Bond Supply: ",Ar," ","Bond Demand: ",K)
-
-        if abs(Ar - K) < tol
-            println("Market clear!")
-            return cstar, apol, λ, Ar, K, model.r
-            break
+            r = (bisection_param)*r+(1-bisection_param)*rsupply
         end
     end
 
-    return println("Markets did not clear")
+    error("no convergence: did not find market clearing interest rate")
+end
+    
+# This function plots market clearing graph
+function plot_market_clearing(hh,A)
+"""
+    Aiyagari's classic picture
+
+    #### Fields
+
+    - 'hh': household tuple
+
+    #### Returns
+    - the plot
+    """
+    
+    @unpack θ, δ = hh
+    
+    rgrid = 0.005:0.002:0.02;
+    Ksupply = zeros(length(rgrid));
+    Kdemand = zeros(length(rgrid));
+    
+    for (index,r) in enumerate(rgrid)
+        Ksupply[index],N = getAggs(hh,A;r=r);
+        Kdemand[index] = N*((r+δ)/(A*θ))^(1/(θ-1));
+    end
+    
+    plot(Ksupply,rgrid,label = "capital supply")
+    plot!(Kdemand,rgrid,label= "capital demand")
+    xlabel!("capital")
+    ylabel!("r")
+
 end

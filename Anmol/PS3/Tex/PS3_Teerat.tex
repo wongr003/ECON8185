@@ -67,11 +67,13 @@
 	\noindent\textbf{\Large Endogenous labor supply} \\
 	
 		We now incorporate endogenous labor supply in our utility function as follows:
-		$$U(c,l) =  \frac{(c^\eta l^{1-\eta})^{1-\mu}}{1-\mu}$$
+		$$U(c,l) =  \frac{c^{1-\gamma}}{1-\gamma} - \phi\frac{l^{1+\eta}}{1+\eta}$$
+		$$Ul(l) = \phi l^\eta$$
+		$$Ul^{-1}(x) = (x/\phi)^{1/\eta}$$
 		
-		where $l$ represents leisure. The budget constraint now becomes
+		where $l$ represents labor. The budget constraint now becomes
 		
-		$$c+a' \leq \epsilon w (1 - l) + (1 + r)a.$$
+		$$c+a' \leq \epsilon w l + (1 + r)a.$$
 		
 		To implement endogenous grid method, as in the case of exogenous labor supply, we start by \\ 
 		
@@ -79,7 +81,7 @@
 		
 		2) Solve for w with \\
 		
-		$$w(r) = (1-\theta)\left(\frac{r+\delta}{\theta}\right)^{\frac{\theta}{\theta-1}}. $$
+		$$w(r) = A(1-\theta)\left(\frac{r+\delta}{A\theta}\right)^{\frac{\theta}{\theta-1}}. $$
 		
 		3) Then we guess $c^{j}(a,\epsilon) = ra + w\epsilon$ as before. \\
 		
@@ -102,6 +104,24 @@
 		
 		$$c^{j+1}(a,\epsilon) = (1+r)a + w \epsilon (1- \bar{l}(a,\epsilon)) \text{ for all } a \leq \bar{a}(a_{1}', \epsilon)$$
 		$$c^{j+1}(a,\epsilon) = \text{ Interpolate } [\bar{c}(a_{k}', \epsilon), \bar{c}(a_{k+1}', \epsilon)] \text{ when } a \in [\bar{a}(a_{k}', \epsilon), \bar{a}(a_{k+1}', \epsilon)]$$
+		
+		Then we solve for stationary distribution $\lambda$. With this, we then solve for equilibrium $r$. \\
+		
+		1) Guess $r_{0}$. \\
+		
+		2) Solve for policy functions $a'(a,\epsilon),c(a,\epsilon)$ and $l(a,\epsilon)$. \\
+		
+		3) Use $a'(a,\epsilon)$ to compute $\lambda(a,\epsilon)$. \\
+		
+		4) Compute aggregate supply of capital (savings) $K_{s}(r_{0}) = \int a_{i}di$ and aggregate labor supply $N(r_{0}) = \int \epsilon_{i}l_{i}di$. \\
+		
+		5) Compute $r_{s} = A\theta \left( \frac{K_{s}(r_{0})}{N(r_{0})} \right)^{\theta-1} -\delta$. This is an interest rate as implied by aggregate supply of capital. \\
+		
+		6) Compare $r_{0}$ and $r_{s}$. If they are close enough, then we solve for an equilibrium interest rate $r = \frac{r_{0}+r_{s}}{2}$. Otherwise, set 
+		
+		$$r_{0} = 0.8 \cdot r_{0} + 0.2 \cdot r_{s}$$
+		
+		and repeat from (1) through (6) until $r$ converged.
 	
 	
 	
