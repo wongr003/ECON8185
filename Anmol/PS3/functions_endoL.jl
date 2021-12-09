@@ -10,7 +10,7 @@ include("Tauchen.jl")
 include("NewtonRoot.jl")
 
 ################################### Create the Household instance #########################
-Household = @with_kw (na = 10, # number of asset grid
+Household = @with_kw (na = 200, # number of asset grid
     amax = 40.0, # asset max
     β = 0.98, # discount factor
     θ = 0.3, #capital share 
@@ -23,10 +23,13 @@ Household = @with_kw (na = 10, # number of asset grid
     μ_ϵ = 0.0, # mean of income process
     ϵGrid = exp.(Tauchen(μ_ϵ, ρ, σ, nϵ)[1]), # grid for income process
     P_ϵ = Tauchen(μ_ϵ, ρ, σ, nϵ)[2], # transition matrix
+    #ϵGrid = [0.8 1.2]',
+    #P_ϵ = [0.8 0.2;0.2 0.8],
     Amat = repeat(collect(LinRange(sqrt(bc), sqrt(amax), na)).^2,1,nϵ), # asset grid
     Ymat = repeat(ϵGrid',na,1), # income grid
-    ϕ = 0.8, # disutility factor
+    ϕ = 1.2, # disutility factor
     η = 2.0) # inverse frisch elasticity for labor supply
+
 
 ################################### Useful functions used in main EGM function #########################
 # Marginal utilities and their Inverse
@@ -250,7 +253,7 @@ function getAggs(hh,A;r)
     - 'K/L': aggregate supply of capital per capita
 """
     @unpack β,Ymat = hh
-    @assert r < 1/β-1 "r too large for convergence"
+    #@assert r < 1/β-1 "r too large for convergence"
 
     cpol,apol,lpol = iterate_egm(hh,A;r=r); # get converged policy function for savings
     Qmat = MakeTransMat(hh,apol); # get transition matrix
@@ -311,7 +314,7 @@ function plot_market_clearing(hh,A)
     
     @unpack θ, δ = hh
     
-    rgrid = 0.005:0.002:0.02;
+    rgrid = 0.01:0.001:0.0194;
     Ksupply = zeros(length(rgrid));
     Kdemand = zeros(length(rgrid));
     

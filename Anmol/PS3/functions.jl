@@ -238,7 +238,7 @@ function Kss(hh;r)
 end
 
 # This function computes r that clears the market
-function market_clearing(hh;r=0.015,tol=1e-5,maxiter=20,bisection_param=0.8)
+function market_clearing(hh,Z;r=0.015,tol=1e-5,maxiter=20,bisection_param=0.8)
 """
     bisection procedure until r converged.
 
@@ -256,7 +256,7 @@ function market_clearing(hh;r=0.015,tol=1e-5,maxiter=20,bisection_param=0.8)
         println("r=$r: ")
         Ksupply,λ = Kss(hh;r=r);
 
-        Z = ((r+δ)/θ)^θ;
+        #Z = ((r+δ)/θ)^θ;
         rsupply = Z*θ*Ksupply^(θ-1) - δ;
         
         if abs(r-rsupply)<tol
