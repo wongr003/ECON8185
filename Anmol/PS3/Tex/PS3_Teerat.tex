@@ -68,6 +68,8 @@
 	
 		We now incorporate endogenous labor supply in our utility function as follows:
 		$$U(c,l) =  \frac{c^{1-\gamma}}{1-\gamma} - \phi\frac{l^{1+\eta}}{1+\eta}$$
+		$$Uc(c) = c^{-\gamma}$$
+		$$Uc^{-1}(x) = x^{-\frac{1}{\gamma}}$$
 		$$Ul(l) = \phi l^\eta$$
 		$$Ul^{-1}(x) = (x/\phi)^{1/\eta}$$
 		
@@ -85,25 +87,31 @@
 		
 		3) Then we guess $c^{j}(a,\epsilon) = ra + w\epsilon$ as before. \\
 		
-		4) Use this guess to solve for $\bar{l}(a, \epsilon)$ from
+		4) Then, for all $(a_{k}',\epsilon_{j})$, we use $c^{j}(a_{k}',\epsilon_{j})$ to solve for 
 		
-		$$\frac{u_{l}(c^{j}(a,\epsilon),l)}{u_{c}(c^{j}(a,\epsilon),l)} = \frac{(c^\eta l^{1-\eta})^{-\mu}c^{\eta}(1-\eta)l^{-\eta} }{(c^\eta l^{1-\eta})^{-\mu}l^{1-\eta}(\eta) c^{\eta-1}} = (\frac{1-\eta}{\eta}) \cdot \frac{c}{l} = w\epsilon.$$
+		$$\bar{c}(a_{k}', \epsilon_{j}) = U_{c}^{-1}\left[ \beta (1+r) \sum_{\epsilon'}P(\epsilon'|\epsilon_{j}) \cdot U_{c}\left[ c^{j}(a_{k}',\epsilon') \right] \right]$$
 		
-		Note that above is an equation of only one unknown, $l$, given a guess for $c$, $c^{j}(a,\epsilon)$. \\
+		5) Use $\bar{c}(a_{k}', \epsilon_{j})$ to solve for $\bar{l}(a_{k}, \epsilon_{j})$ from
 		
+		$$\frac{u_{l}(l)}{u_{c}(\bar{c}(a_{k}', \epsilon_{j}))} = \frac{\phi l^{\eta}}{\bar{c}(a_{k}', \epsilon_{j})^{-\gamma}} = w\epsilon_{j}.$$
 		
-		5) Then, for all $(a_{k}',\epsilon_{j})$, we use $\bar{l}(a_{k}',\epsilon_{j})$ and $c^{j}(a_{k}',\epsilon_{j})$ to solve for 
+		Note that above is an equation of only one unknown, $l$, given $\bar{c}(a_{k}',\epsilon_{j})$. \\
 		
-		$$\bar{c}(a_{k}', \epsilon_{j}) = U_{c}^{-1}\left[ \beta (1+r) \sum_{\epsilon'}P(\epsilon'|\epsilon_{j}) \cdot U_{c}\left[ c^{j}(a_{k}',\epsilon'),\bar{l}(a_{k}',\epsilon') \right] \right]$$
+		6) Then, for all $(a_{k}',\epsilon_{j})$, we use $\bar{c}(a_{k}',\epsilon_{j})$ and $\bar{l}(a_{k}',\epsilon_{j})$ to solve for 
 		
-		$$\bar{a}(a_{k}', \epsilon_{j}) = \frac{\bar{c}(a_{k}', \epsilon_{j}) + a_{k}' - w\epsilon_{j}(1-\bar{l}(a_{k}',\epsilon_{j}))}{1+r}.$$
+		$$\bar{a}(a_{k}', \epsilon_{j}) = \frac{\bar{c}(a_{k}', \epsilon_{j}) + a_{k}' - w\epsilon_{j}\bar{l}(a_{k}',\epsilon_{j})}{1+r}.$$
 		
 		Note here that $(a_{k}', \epsilon_{j})$ are on the same grid as $(a,\epsilon)$. \\
 		
-		6) Then we update $c^{j+1}(a,\epsilon)$ as follows:
+		7) Then we update $c^{j+1}(a,\epsilon)$ as follows:
 		
-		$$c^{j+1}(a,\epsilon) = (1+r)a + w \epsilon (1- \bar{l}(a,\epsilon)) \text{ for all } a \leq \bar{a}(a_{1}', \epsilon)$$
+		$$c^{j+1}(a,\epsilon) = (1+r)a + w \epsilon\bar{l}(a,\epsilon) \text{ for all } a \leq \bar{a}(a_{1}', \epsilon)$$
 		$$c^{j+1}(a,\epsilon) = \text{ Interpolate } [\bar{c}(a_{k}', \epsilon), \bar{c}(a_{k+1}', \epsilon)] \text{ when } a \in [\bar{a}(a_{k}', \epsilon), \bar{a}(a_{k+1}', \epsilon)]$$
+		
+		8) Check whether $c^{j+1}(a,\epsilon)$ and $c^{j}(a,\epsilon)$ are close enough. If no, repeat step (4) down again with $c^{j+1}(a,\epsilon)$. If yes, use the updated $c^{j+1}(a,\epsilon)$ to back out 
+		
+		$$l(a_{i},\epsilon_{j}) = Ul^{-1}(w \cdot \epsilon_{j} \cdot Uc(c^{j+1}(a_{i},\epsilon_{j})))$$
+		$$a'(a_{i},\epsilon_{j}) = (1+r)a_{i} + w \epsilon_{j} l - c^{j+1}(a_{i},\epsilon_{j})$$
 		
 		Then we solve for stationary distribution $\lambda$. With this, we then solve for equilibrium $r$. \\
 		
@@ -121,8 +129,40 @@
 		
 		$$r_{0} = 0.8 \cdot r_{0} + 0.2 \cdot r_{s}$$
 		
-		and repeat from (1) through (6) until $r$ converged.
+		and repeat from (1) through (6) until $r$ converged. \\
+		
+		\noindent\textbf{\Large Add Government} \\
+		
+		We assume $\tau = 0.4$, $T/Y = 0.13$ and $G/Y = 0.20$, and the budget constraint now becomes
+		
+		$$c+a' \leq (1 -\tau)\epsilon w l + T + (1 + (1 -\tau)r)a.$$
+		
+		Note that we also have government budget constraint as follows:
+		
+		$$G + T + rB = B' - B + \tau(wN + rA),$$
+		
+		where $N$ is the aggregate labor supply and $A$ is the aggregate asset supply. For EGM, steps (1),(2),(3),(4) are the same (or change (3) as well) ???: \\
+		
+		5) Use $\bar{c}(a_{k}', \epsilon_{j})$ to solve for $\bar{l}(a_{k}, \epsilon_{j})$ from
+		
+		$$\frac{u_{l}(l)}{u_{c}(\bar{c}(a_{k}', \epsilon_{j}))} = \frac{\phi l^{\eta}}{\bar{c}(a_{k}', \epsilon_{j})^{-\gamma}} = (1-\tau)w\epsilon_{j}.$$
+		
+		6) Then, for all $(a_{k}',\epsilon_{j})$, we use $\bar{c}(a_{k}',\epsilon_{j})$ and $\bar{l}(a_{k}',\epsilon_{j})$ to solve for 
+		
+		$$\bar{a}(a_{k}', \epsilon_{j}) = \frac{\bar{c}(a_{k}', \epsilon_{j}) + a_{k}' - (1-\tau) w\epsilon_{j}\bar{l}(a_{k}',\epsilon_{j}) + T}{1+(1-\tau)r}.$$
+		
+		Note here that $(a_{k}', \epsilon_{j})$ are on the same grid as $(a,\epsilon)$. \\
+		
+		7) Then we update $c^{j+1}(a,\epsilon)$ as follows:
+		
+		$$c^{j+1}(a,\epsilon) = (1-\tau) w \epsilon\bar{l}(a,\epsilon) + T + (1+(1-\tau)r)a  \text{ for all } a \leq \bar{a}(a_{1}', \epsilon)$$
+		$$c^{j+1}(a,\epsilon) = \text{ Interpolate } [\bar{c}(a_{k}', \epsilon), \bar{c}(a_{k+1}', \epsilon)] \text{ when } a \in [\bar{a}(a_{k}', \epsilon), \bar{a}(a_{k+1}', \epsilon)]$$
 	
+		8) Check whether $c^{j+1}(a,\epsilon)$ and $c^{j}(a,\epsilon)$ are close enough. If no, repeat step (4) down again with $c^{j+1}(a,\epsilon)$. If yes, use the updated $c^{j+1}(a,\epsilon)$ to back out 
+		
+		$$l(a_{i},\epsilon_{j}) = Ul^{-1}((1-\tau) \cdot w \cdot \epsilon_{j} \cdot Uc(c^{j+1}(a_{i},\epsilon_{j})))$$
+		$$a'(a_{i},\epsilon_{j}) =  (1-\tau) w \epsilon_{j} l + T + (1+(1-\tau)r)a_{i} - c^{j+1}(a_{i},\epsilon_{j}) $$
+
 	
 	
 \end{document}

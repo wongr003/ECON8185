@@ -4,7 +4,7 @@ using Plots
 
 ## Parameters
 α = 0.333;
-δ = 1.0;
+δ = 0.1;
 β = 0.975;
 A = 1.05;
 nk = 1000; # number of capital grids
@@ -58,5 +58,9 @@ while maxDiff >= tol && iter < maxiter
 end
 
 plot(k_grid,k_grid,label = "", color = :black, linestyle = :dash)
-plot!(k_grid,kpol,label = "VFI")
-plot!(k_grid,α*β*A*k_grid.^α,label = "true")
+plot!(k_grid,kpol,label = "Capital policy")
+
+plot(k_grid,V_new,label = "Value Function")
+
+# This is a check when δ = 1
+# plot!(k_grid,α*β*A*k_grid.^α,label = "true") 
