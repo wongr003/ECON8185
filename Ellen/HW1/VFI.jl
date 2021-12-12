@@ -14,7 +14,7 @@ include("NewtonRoot.jl")
 β = 0.9722; # discount rate
 β_hat = β*(1+γ_n); # detrended discount rate
 ψ = 2.24; # labor coefficient
-nz = 2; # number of states for productivity
+nz = 5; # number of states for productivity
 σ = 0.5; # stand. dev. for productivity process
 ρ = 0.2; # autocorr of productivity process
 μ_z = 0.0; # mean of productivity process
@@ -33,7 +33,7 @@ S = nlsolve(ee!, [0.5,0.5],ftol = :1.0e-9, method = :trust_region , autoscale = 
 kss = S.zero[1];
 hss = S.zero[2];
 lss = 1-hss;
-# css 
+css = (kss^θ)*((exp(0)*hss)^(1-θ))-(1+γ_n)*(1+γ_z)*kss+(1-δ)*kss;
 
 ## Construct capital grid
 nk = 1000; # number of capital grid
@@ -119,11 +119,11 @@ plot!(kGrid,V_new[:,2])
  
 plot(kGrid,kGrid,label = "", color = :black, linestyle = :dash)
 plot!(kGrid,kpol[:,1],label = "low",legend = :topleft)
-plot!(kGrid,kpol[:,2],label = "high",legend = :topleft)
+plot!(kGrid,kpol[:,5],label = "high",legend = :topleft)
 
 plot(kGrid,hpol[:,1],label = "low",legend = :topleft)
-plot!(kGrid,hpol[:,2],label = "high",legend = :topleft)
+plot!(kGrid,hpol[:,3],label = "high",legend = :topleft)
 
 plot(kGrid,cpol[:,1],label = "low",legend = :topleft)
-plot!(kGrid,cpol[:,2],label = "high",legend = :topleft)
+plot!(kGrid,cpol[:,3],label = "high",legend = :topleft)
 
