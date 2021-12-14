@@ -2,22 +2,45 @@
 using Plots
 
 ## Files
+include("VFI.jl")
 include("LQ_Vaughan.jl")
 
+################################### Running three methods ########################
 md = Model();
 kss,hss,lss,css = getSS(md);
+
+## Construct capital grid
+nk = 1000; # number of capital grid
+kmin = 0.5*kss;
+kmax = 1.5*kss;
+kGrid = LinRange(kmin,kmax,nk);
+
+V_VFI,kpol_VFI,hpol_VFI,cpol_VFI = VFI(md,nk,kGrid)
+
 A_tld,B_tld,Q_tld,R,W = getM(md,kss,hss);
 P_LQ,F_LQ = LQ(A_tld,B_tld,R,Q_tld);
 Pv,Fv = Vaughan(A_tld,B_tld,Q_tld,R,W);
 
-## Plotting
-# Constructing Policy function
-nk = 100;
-kGrid = LinRange(0.5*kss, 1.5*kss, nk);
+################################### Plotting ########################
+## VFI
+plot(kGrid,V_VFI[:,1])
+plot!(kGrid,V_VFI[:,2])
+ 
+plot(kGrid,kGrid,label = "", color = :black, linestyle = :dash)
+plot!(kGrid,kpol_VFI[:,1],label = "low",legend = :topleft)
+plot!(kGrid,kpol_VFI[:,3],label = "SS",legend = :topleft)
+plot!(kGrid,kpol_VFI[:,5],label = "high",legend = :topleft)
 
+plot(kGrid,hpol[:,1],label = "low",legend = :topleft)
+plot!(kGrid,hpol[:,3],label = "high",legend = :topleft)
+
+plot(kGrid,cpol[:,1],label = "low",legend = :topleft)
+plot!(kGrid,cpol[:,3],label = "high",legend = :topleft)
+
+## LQ and Vaughan
 # Low shock
-pol_L_LQ = zeros(2, 1, 100);
-pol_L_v = zeros(2, 1, 100);
+pol_L_LQ = zeros(2, 1, nk);
+pol_L_v = zeros(2, 1, nk);
 for i = 1:nk
     pol_L_LQ[:,:,i] = -F_LQ*[kGrid[i]; -0.5; 1];
     pol_L_v[:,:,i] = -Fv*[kGrid[i]; -0.5; 1];
@@ -36,8 +59,8 @@ for i = 1:nk
 end
 
 # High shock
-pol_H_LQ = zeros(2, 1, 100);
-pol_H_v = zeros(2, 1, 100);
+pol_H_LQ = zeros(2, 1, nk);
+pol_H_v = zeros(2, 1, nk);
 
 for i = 1:nk
     pol_H_LQ[:,:,i] = -F_LQ*[kGrid[i]; 0.5; 1];
@@ -57,8 +80,8 @@ for i = 1:nk
 end
 
 # SS shock
-pol_SS_LQ = zeros(2, 1, 100);
-pol_SS_v = zeros(2, 1, 100);
+pol_SS_LQ = zeros(2, 1, nk);
+pol_SS_v = zeros(2, 1, nk);
 
 for i = 1:nk
     pol_SS_LQ[:,:,i] = -F_LQ*[kGrid[i]; 0.0; 1];
@@ -79,12 +102,12 @@ end
 
 ################### Plots ##################################
 plot(kGrid,kGrid,label = "", color = :black, linestyle = :dash)
-plot!(kGrid,vec(kpol_L_LQ),label = "Low",legend=:topleft)
-plot!(kGrid,vec(kpol_H_LQ),label = "High")
-plot!(kGrid,vec(kpol_SS_LQ),label = "SS")
-plot!(kGrid,vec(kpol_L_v),label = "Low",legend=:topleft)
-plot!(kGrid,vec(kpol_H_v),label = "High")
-plot!(kGrid,vec(kpol_SS_v),label = "SS")
+plot!(kGrid,vec(kpol_L_LQ),label = "Low_LQ",legend=:topleft)
+plot!(kGrid,vec(kpol_H_LQ),label = "High_LQ")
+plot!(kGrid,vec(kpol_SS_LQ),label = "SS_LQ")
+plot!(kGrid,vec(kpol_L_v),label = "Low_Vaughan",legend=:topleft)
+plot!(kGrid,vec(kpol_H_v),label = "High_Vaughan")
+plot!(kGrid,vec(kpol_SS_v),label = "SS_Vaughan")
 
 plot(kGrid,vec(hpol_L),label = "Low",legend=:topright)
 plot!(kGrid,vec(hpol_H),label = "High")

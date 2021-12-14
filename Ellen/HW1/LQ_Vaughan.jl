@@ -8,36 +8,7 @@ using ForwardDiff
 include("NewtonRoot.jl")
 include("Riccati.jl")
 
-## Parameters
-Model = @with_kw (θ = 0.35, # capital share
-    δ = 0.0464, # depreciation rate
-    γ_z = 0.016, # growth rate of productivity
-    γ_n = 0.015, # growth rate of population
-    β = 0.9722, # discount rate
-    β_hat = β*(1+γ_n), # detrended discount rate
-    ψ = 2.24, # labor coefficient
-    ρ = 0.2) # autocorr of productivity process
-
-## Get the Steady-State level of capital from a Nonlinear solver
-function getSS(md)
-    @unpack θ,ψ,δ,β_hat,γ_n,γ_z = md
-
-    function ee!(eq,x)
-        k=(x[1])
-        h=(x[2])
-        eq[1]=β_hat*(θ*k^(θ-1)*h^(1-θ)+1-δ)-(1+γ_n)*(1+γ_z)
-        eq[2]=(-(ψ/(1-h)))+((1-θ)*(k^θ)*(h^(-θ)))/((k^θ)*(h^(1-θ))-(1+γ_n)*(1+γ_z)*k+(1-δ)*k)
-    end
-
-    S = nlsolve(ee!, [0.5,0.5],ftol = :1.0e-9, method = :trust_region , autoscale = true);
-    kss = S.zero[1];
-    hss = S.zero[2];
-    lss = 1-hss;
-    css = (kss^θ)*((exp(0)*hss)^(1-θ))-(1+γ_n)*(1+γ_z)*kss+(1-δ)*kss;
-
-    return kss,hss,lss,css
-end
-
+######################## Preliminary ###################################
 # Construct gradient and hessian at SS
 function getM(md,kss,hss)
     @unpack θ,ψ,δ,γ_n,γ_z,ρ,β_hat = md
