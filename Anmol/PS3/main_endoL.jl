@@ -1,3 +1,5 @@
+using NLsolve
+
 include("functions_endoL.jl")
 
 hh = Household();
@@ -13,13 +15,26 @@ plot(hh.Amat[:,1], lpol[:,1], label = "ϵ = $(round(hh.Ymat[1,1], digits = 3))")
 plot!(hh.Amat[:,1], lpol[:,2], label = "ϵ = $(round(hh.Ymat[1,2], digits = 3))")
 
 # Calibrating A such that Y = 1, A = 0.45726596004725534
+"""
 dist_Y = 10;
 while dist_Y > 10^-5
-    r,Y = market_clearing(hh,A_guess,r=r_guess);
+    r,Y = market_clearing(hh,A_guess,r_guess);
     dist_Y = abs(Y-1);
     A_guess = 0.5*A_guess+0.5*A_guess/Y;
     println("Y is $Y, new A is $A_guess")
 end
+"""
 
-market_clearing(hh,A_guess)
-plot_market_clearing(hh,A_guess)
+#market_clearing(hh,A_guess,r_guess)
+#plot_market_clearing(hh,A_guess)
+
+function f!(F,x)
+    r = x[1]
+    A = x[2] 
+    r_eq,K,N = market_clearing(hh,A,r)
+    F[1] = r_eq-r
+    F[2] = 1-A*(K^0.3)*(N^(1-0.3))
+end
+
+nlsolve(f!,[0.015,0.4])
+

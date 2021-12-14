@@ -8,9 +8,10 @@ using BenchmarkTools
 ## Files
 include("Tauchen.jl")
 include("NewtonRoot.jl")
+include("bisection.jl")
 
 ################################### Create the Household instance #########################
-Household = @with_kw (na = 20, # number of asset grid
+Household = @with_kw (na = 200, # number of asset grid
     amax = 40.0, # asset max
     β = 0.98, # discount factor
     θ = 0.3, #capital share 
@@ -18,7 +19,7 @@ Household = @with_kw (na = 20, # number of asset grid
     γ = 2.0, # inverse elasticity of substitution
     bc = 0, # borrowing constraint (must be weakly negative)
     ρ = 0.6, # autocorr of income process
-    nϵ = 2, # number of states for income process
+    nϵ = 5, # number of states for income process
     σ = 0.3, # stand. dev. of income process
     μ_ϵ = 0.0, # mean of income process
     ϵGrid = exp.(Tauchen(μ_ϵ, ρ, σ, nϵ)[1]), # grid for income process
@@ -29,9 +30,7 @@ Household = @with_kw (na = 20, # number of asset grid
     Ymat = repeat(ϵGrid',na,1), # income grid
     ϕ = 1.2, # disutility factor
     η = 2.0, # inverse frisch elasticity for labor supply
-    τ = 0.4, # income tax
-    T = 0.13, # aggregate transfer
-    G = 0.2) # government expenses
+    τ = 0.4) # income tax
 
 
 ################################### Useful functions used in main EGM function #########################
@@ -55,14 +54,14 @@ function getl(c,ϵ,γ,ϕ,η,τ,w)
 end
 
 # Obtain current assets, given consumption today defined on asset grid tomorrow
-geta(Amat,Ymat,γ,ϕ,η,τ,T;r,w,c) = 1/(1+(1-τ)*r).*(c.+Amat.-(1-τ).*w.*Ymat.*getl(c,Ymat,γ,ϕ,η,τ,w).+T)
+geta(Amat,Ymat,γ,ϕ,η,τ,T;r,w,c) = 1/(1+(1-τ)*r).*(c.+Amat.-(1-τ).*w.*Ymat.*getl(c,Ymat,γ,ϕ,η,τ,w).-T)
 
 ################################### Main EGM function #########################
 # This is the main EGM function. It iterates on the Euler equation c_{t} = β*(1+r_{t+1})*E_{t}[c_{t+1}],
 # given a guess for the consumption policy function, c_{t+1} (cnext in the function).
 # Note that we no longer need a root finding procedure, but still need to interpolate the optimal policy 
 # on our defined grid
-function egm(hh;w,cnext,cbinding,r,rnext)
+function egm(hh,T;w,cnext,cbinding,r,rnext)
 """
     use endogenous grid method to obtain c_{t} and a_{t} given c_{t+1} 'cnext'
 
@@ -81,7 +80,7 @@ function egm(hh;w,cnext,cbinding,r,rnext)
     - 'l': time t labor function
 """
 
-    @unpack γ,β,P_ϵ,Amat,Ymat,na,nϵ,ϕ,η,τ,T = hh
+    @unpack γ,β,P_ϵ,Amat,Ymat,na,nϵ,ϕ,η,τ = hh
 
     # Current policy functions on current grid
     c = getc(γ,β,P_ϵ;rnext = rnext, cnext = cnext);
@@ -92,8 +91,6 @@ function egm(hh;w,cnext,cbinding,r,rnext)
 
     # Interpolate consumption policy function for current grid
     for i = 1:nϵ
-        println("Is c$(i) sorted: $(issorted(c[:,i]))")
-        println("Is a$(i) sorted: $(issorted(a[:,i]))")
         cnonbinding[:,i] = LinearInterpolation(a[:,i], c[:,i], extrapolation_bc = Line()).(Amat[:,i]);
     end
 
@@ -103,13 +100,7 @@ function egm(hh;w,cnext,cbinding,r,rnext)
     # Note that this uses the monotonicity of the policy rule.
 
     for j = 1:nϵ
-        println("lowest a$(j) is $(a[1,j])")
         c[:,j] = (Amat[:,j] .> a[1,j]) .*cnonbinding[:,j] .+ (Amat[:,j] .<= a[1,j]).*cbinding[:,j];
-        println("cnonbinding is $(cnonbinding[:,j])")
-        println("cbinding is $(cbinding[:,j])")
-        #println("Is cnonbinding$(j) sorted: $(issorted(cnonbinding[:,j]))")
-        #println("Is cbinding$(j) sorted: $(issorted(cbinding[:,j]))")
-        println("Is c$(j) sorted: $(issorted(c[:,j]))")
     end
 
     l = getl(c,Ymat,γ,ϕ,η,τ,w);
@@ -121,7 +112,7 @@ function egm(hh;w,cnext,cbinding,r,rnext)
 end
 
 # This is the function that iterates on the EGM function above to solve for the optimal policy rule.
-function iterate_egm(hh,A;r,tol=1e-8,maxiter=1000)
+function iterate_egm(hh,A,T;r,tol=1e-8,maxiter=10000)
 """
     iterates on EGM method until c converged
 
@@ -136,11 +127,11 @@ function iterate_egm(hh,A;r,tol=1e-8,maxiter=1000)
     - 'l': policy function for labor, given r
 """
     
-    @unpack δ,θ,Amat,Ymat,bc,γ,ϕ,η,na,nϵ,τ,T = hh
+    @unpack δ,θ,Amat,Ymat,bc,γ,ϕ,η,na,nϵ,τ = hh
 
     w = A*(1-θ)*((r+δ)/(A*θ))^(θ/(θ-1)); # wage rate given guess for r
 
-    cnext = @. r*Amat+w*Ymat; # initial guess for policy function iteration (should we add tax and transfer here??)
+    cnext = @. r*Amat+w*Ymat+T; # initial guess for policy function iteration (should we add tax and transfer here??)
 
     # get consumption when borrowing constraint binds
     function getcBinding(a,c,ϵ)
@@ -158,11 +149,11 @@ function iterate_egm(hh,A;r,tol=1e-8,maxiter=1000)
     iter = 1;
 
     for i = 1:maxiter
-        println("iteration: $i"," ")
-        c = egm(hh;w=w,rnext=r,r=r,cnext=cnext,cbinding=cbinding)[1];
+        #println("iteration: $i"," ")
+        c = egm(hh,T;w=w,rnext=r,r=r,cnext=cnext,cbinding=cbinding)[1];
         if norm(c-cnext,Inf)<tol
             #println("Solved for policy functions in $i iterations")
-            return egm(hh;w=w,rnext=r,r=r,cnext=cnext,cbinding=cbinding)
+            return egm(hh,T;w=w,rnext=r,r=r,cnext=cnext,cbinding=cbinding)
         else
             cnext=c;
             iter = iter+1;
@@ -252,7 +243,7 @@ function StationaryDistribution(hh,Qmat,tol=1e-10,maxiter=1000)
 end
 
 # This function computes steady state of aggregate capital supply
-function getAggs(hh,A;r)
+function getAggs(hh,A,T;r)
 """
     compute aggregate supply of capital: A(r,w) = ∫a'(a,ϵ;r,w)dλ(a,ϵ;r) = ā' ⋅ λ̄
 
@@ -267,20 +258,20 @@ function getAggs(hh,A;r)
     @unpack β,Ymat = hh
     #@assert r < 1/β-1 "r too large for convergence"
 
-    cpol,apol,lpol = iterate_egm(hh,A;r=r); # get converged policy function for savings
+    cpol,apol,lpol = iterate_egm(hh,A,T;r=r); # get converged policy function for savings
     Qmat = MakeTransMat(hh,apol); # get transition matrix
     λ = StationaryDistribution(hh,Qmat); # get invariant distribution
 
-    K = reshape(apol,(length(λ),1));    
-    K = sum(K.*λ);
+    Asset = reshape(apol,(length(λ),1));    
+    Asset = sum(Asset.*λ);
     N = reshape(lpol.*Ymat,(length(λ),1));
     N = sum(N.*λ);
 
-    return K,N
+    return Asset,N
 end
 
 # This function computes r that clears the market
-function market_clearing(hh,A;r=0.015,tol=1e-5,maxiter=20,bisection_param=0.8)
+function market_clearing(hh,A,r,T,B;tol=1e-5,maxiter=100,bisection_param=0.8)
 """
     bisection procedure until r converged.
 
@@ -293,26 +284,29 @@ function market_clearing(hh,A;r=0.015,tol=1e-5,maxiter=20,bisection_param=0.8)
     """
 
     @unpack θ,δ = hh
+    println("r = $r")
 
-    for iter = 1:maxiter
-        println("r=$r: ")
-        Ksupply,N = getAggs(hh,A;r=r);
-         
-        rsupply = A*θ*(Ksupply/N)^(θ-1) - δ;
-        
-        if abs(r-rsupply)<tol
-            Y = A*(Ksupply^θ)*(N)^(1-θ);
-            return (r+rsupply)/2,Y
-        else
-            r = (bisection_param)*r+(1-bisection_param)*rsupply
-        end
+    function ExcessD(r)
+        Asset,N = getAggs(hh,A,T;r=r);
+        Ksupply = max(Asset - B,0.0);
+        Kdemand = N*((r+δ)/(A*θ))^(1/(θ-1))
+        return Kdemand-Ksupply
     end
+    
+    r = bisection(r->ExcessD(r),0.0001,0.0204)
+    println("r_eq is $r")
 
-    error("no convergence: did not find market clearing interest rate")
+    Asset,N = getAggs(hh,A,T;r=r);
+    Ksupply = max(Asset - B,0.0);
+    w = A*(1-θ)*((r+δ)/(A*θ))^(θ/(θ-1));
+
+    return r,Ksupply,N,w
+
+    #error("no convergence: did not find market clearing interest rate")
 end
     
 # This function plots market clearing graph
-function plot_market_clearing(hh,A)
+function plot_market_clearing(hh,A,T,B)
 """
     Aiyagari's classic picture
 
@@ -324,14 +318,15 @@ function plot_market_clearing(hh,A)
     - the plot
     """
     
-    @unpack θ, δ = hh
+    @unpack θ,δ = hh
     
-    rgrid = 0.01:0.001:0.0194;
+    rgrid = 0.0001:0.001:0.0204;
     Ksupply = zeros(length(rgrid));
     Kdemand = zeros(length(rgrid));
     
     for (index,r) in enumerate(rgrid)
-        Ksupply[index],N = getAggs(hh,A;r=r);
+        Asset,N = getAggs(hh,A,T;r=r);
+        Ksupply[index] = max(Asset-B,0.0);
         Kdemand[index] = N*((r+δ)/(A*θ))^(1/(θ-1));
     end
     

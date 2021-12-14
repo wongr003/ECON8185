@@ -268,7 +268,7 @@ function getAggs(hh,A;r)
 end
 
 # This function computes r that clears the market
-function market_clearing(hh,A;r=0.015,tol=1e-5,maxiter=20,bisection_param=0.8)
+function market_clearing(hh,A,r;tol=1e-5,maxiter=20,bisection_param=0.8)
 """
     bisection procedure until r converged.
 
@@ -283,14 +283,14 @@ function market_clearing(hh,A;r=0.015,tol=1e-5,maxiter=20,bisection_param=0.8)
     @unpack θ,δ = hh
 
     for iter = 1:maxiter
-        println("r=$r: ")
+        #println("r=$r: ")
         Ksupply,N = getAggs(hh,A;r=r);
          
         rsupply = A*θ*(Ksupply/N)^(θ-1) - δ;
         
         if abs(r-rsupply)<tol
-            Y = A*(Ksupply^θ)*(N)^(1-θ);
-            return (r+rsupply)/2,Y
+            #Y = A*(Ksupply^θ)*(N)^(1-θ);
+            return r,Ksupply,N
         else
             r = (bisection_param)*r+(1-bisection_param)*rsupply
         end
