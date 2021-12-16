@@ -101,14 +101,35 @@ for i = 1:nk
 end
 
 ################### Plots ##################################
-plot(kGrid,kGrid,label = "", color = :black, linestyle = :dash)
+# capital policy LQ
+plot(kGrid,kGrid,label = "45 degree line", color = :black, linestyle = :dash,
+title = "Optimal capital policy function (LQ)",xlabel = "k_{t}", ylabel = "k_{t+1}")
 plot!(kGrid,vec(kpol_L_LQ),label = "Low_LQ",legend=:topleft)
 plot!(kGrid,vec(kpol_H_LQ),label = "High_LQ")
 plot!(kGrid,vec(kpol_SS_LQ),label = "SS_LQ")
+savefig("figs/kpol_LQ.png")
+
+# labor policy LQ
+plot(kGrid,vec(hpol_L_LQ),label = "Low",legend=:topright,
+title = "Optimal labor policy function (LQ)",xlabel = "k_{t}", ylabel = "h_{t}")
+plot!(kGrid,vec(hpol_H_LQ),label = "High")
+plot!(kGrid,vec(hpol_SS_LQ),label = "SS")
+savefig("figs/hpol_LQ.png")
+
+# capital policy Vaughan
+plot(kGrid,kGrid,label = "45 degree line", color = :black, linestyle = :dash,
+title = "Optimal capital policy function (Vaughan)",xlabel = "k_{t}", ylabel = "k_{t+1}")
 plot!(kGrid,vec(kpol_L_v),label = "Low_Vaughan",legend=:topleft)
 plot!(kGrid,vec(kpol_H_v),label = "High_Vaughan")
 plot!(kGrid,vec(kpol_SS_v),label = "SS_Vaughan")
+savefig("figs/kpol_Vaughan.png")
 
-plot(kGrid,vec(hpol_L),label = "Low",legend=:topright)
-plot!(kGrid,vec(hpol_H),label = "High")
-plot!(kGrid,vec(hpol_SS),label = "SS")
+# labor policy Vaughan
+plot(kGrid,vec(hpol_L_v),label = "Low",legend=:topright,
+title = "Optimal labor policy function (Vaughan)",xlabel = "k_{t}", ylabel = "h_{t}")
+plot!(kGrid,vec(hpol_H_v),label = "High")
+plot!(kGrid,vec(hpol_SS_v),label = "SS")
+savefig("figs/hpol_Vaughan.png")
+
+
+

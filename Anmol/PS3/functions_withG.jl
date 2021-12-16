@@ -11,7 +11,7 @@ include("NewtonRoot.jl")
 include("bisection.jl")
 
 ################################### Create the Household instance #########################
-Household = @with_kw (na = 200, # number of asset grid
+Household = @with_kw (na = 100, # number of asset grid
     amax = 40.0, # asset max
     β = 0.98, # discount factor
     θ = 0.3, #capital share 
@@ -28,8 +28,7 @@ Household = @with_kw (na = 200, # number of asset grid
     #P_ϵ = [0.8 0.2;0.2 0.8],
     Amat = repeat(collect(LinRange(sqrt(bc), sqrt(amax), na)).^2,1,nϵ), # asset grid
     Ymat = repeat(ϵGrid',na,1), # income grid
-    ϕ = 1.2, # disutility factor
-    η = 2.0, # inverse frisch elasticity for labor supply
+    η = 0.5, # inverse frisch elasticity for labor supply
     τ = 0.4) # income tax
 
 
@@ -61,7 +60,7 @@ geta(Amat,Ymat,γ,ϕ,η,τ,T;r,w,c) = 1/(1+(1-τ)*r).*(c.+Amat.-(1-τ).*w.*Ymat.
 # given a guess for the consumption policy function, c_{t+1} (cnext in the function).
 # Note that we no longer need a root finding procedure, but still need to interpolate the optimal policy 
 # on our defined grid
-function egm(hh,T;w,cnext,cbinding,r,rnext)
+function egm(hh,T,ϕ;w,cnext,cbinding,r,rnext)
 """
     use endogenous grid method to obtain c_{t} and a_{t} given c_{t+1} 'cnext'
 
@@ -80,7 +79,7 @@ function egm(hh,T;w,cnext,cbinding,r,rnext)
     - 'l': time t labor function
 """
 
-    @unpack γ,β,P_ϵ,Amat,Ymat,na,nϵ,ϕ,η,τ = hh
+    @unpack γ,β,P_ϵ,Amat,Ymat,na,nϵ,η,τ = hh
 
     # Current policy functions on current grid
     c = getc(γ,β,P_ϵ;rnext = rnext, cnext = cnext);
@@ -112,7 +111,7 @@ function egm(hh,T;w,cnext,cbinding,r,rnext)
 end
 
 # This is the function that iterates on the EGM function above to solve for the optimal policy rule.
-function iterate_egm(hh,A,T;r,tol=1e-8,maxiter=10000)
+function iterate_egm(hh,A,T,ϕ;r,tol=1e-8,maxiter=10000)
 """
     iterates on EGM method until c converged
 
@@ -127,12 +126,12 @@ function iterate_egm(hh,A,T;r,tol=1e-8,maxiter=10000)
     - 'l': policy function for labor, given r
 """
     
-    @unpack δ,θ,Amat,Ymat,bc,γ,ϕ,η,na,nϵ,τ = hh
+    @unpack δ,θ,Amat,Ymat,bc,γ,η,na,nϵ,τ = hh
 
     w = A*(1-θ)*((r+δ)/(A*θ))^(θ/(θ-1)); # wage rate given guess for r
 
     cnext = @. r*Amat+w*Ymat+T; # initial guess for policy function iteration (should we add tax and transfer here??)
-
+    
     # get consumption when borrowing constraint binds
     function getcBinding(a,c,ϵ)
         @. (1-τ)*w*ϵ*getl(c,ϵ,γ,ϕ,η,τ,w)+T+(1+(1-τ)*r)*a-bc-c;
@@ -150,10 +149,10 @@ function iterate_egm(hh,A,T;r,tol=1e-8,maxiter=10000)
 
     for i = 1:maxiter
         #println("iteration: $i"," ")
-        c = egm(hh,T;w=w,rnext=r,r=r,cnext=cnext,cbinding=cbinding)[1];
+        c = egm(hh,T,ϕ;w=w,rnext=r,r=r,cnext=cnext,cbinding=cbinding)[1];
         if norm(c-cnext,Inf)<tol
             #println("Solved for policy functions in $i iterations")
-            return egm(hh,T;w=w,rnext=r,r=r,cnext=cnext,cbinding=cbinding)
+            return egm(hh,T,ϕ;w=w,rnext=r,r=r,cnext=cnext,cbinding=cbinding)
         else
             cnext=c;
             iter = iter+1;
@@ -243,7 +242,7 @@ function StationaryDistribution(hh,Qmat,tol=1e-10,maxiter=1000)
 end
 
 # This function computes steady state of aggregate capital supply
-function getAggs(hh,A,T;r)
+function getAggs(hh,A,T,ϕ;r)
 """
     compute aggregate supply of capital: A(r,w) = ∫a'(a,ϵ;r,w)dλ(a,ϵ;r) = ā' ⋅ λ̄
 
@@ -258,7 +257,7 @@ function getAggs(hh,A,T;r)
     @unpack β,Ymat = hh
     #@assert r < 1/β-1 "r too large for convergence"
 
-    cpol,apol,lpol = iterate_egm(hh,A,T;r=r); # get converged policy function for savings
+    cpol,apol,lpol = iterate_egm(hh,A,T,ϕ;r=r); # get converged policy function for savings
     Qmat = MakeTransMat(hh,apol); # get transition matrix
     λ = StationaryDistribution(hh,Qmat); # get invariant distribution
 
@@ -271,7 +270,7 @@ function getAggs(hh,A,T;r)
 end
 
 # This function computes r that clears the market
-function market_clearing(hh,A,r,T,B;tol=1e-5,maxiter=100,bisection_param=0.8)
+function market_clearing(hh,A,r,T,B,ϕ;tol=1e-5,maxiter=100,bisection_param=0.8)
 """
     bisection procedure until r converged.
 
@@ -287,7 +286,7 @@ function market_clearing(hh,A,r,T,B;tol=1e-5,maxiter=100,bisection_param=0.8)
     println("r = $r")
 
     function ExcessD(r)
-        Asset,N = getAggs(hh,A,T;r=r);
+        Asset,N = getAggs(hh,A,T,ϕ;r=r);
         Ksupply = max(Asset - B,0.0);
         Kdemand = N*((r+δ)/(A*θ))^(1/(θ-1))
         return Kdemand-Ksupply
@@ -296,7 +295,7 @@ function market_clearing(hh,A,r,T,B;tol=1e-5,maxiter=100,bisection_param=0.8)
     r = bisection(r->ExcessD(r),0.0001,0.0204)
     println("r_eq is $r")
 
-    Asset,N = getAggs(hh,A,T;r=r);
+    Asset,N = getAggs(hh,A,T,ϕ;r=r);
     Ksupply = max(Asset - B,0.0);
     w = A*(1-θ)*((r+δ)/(A*θ))^(θ/(θ-1));
 
@@ -306,7 +305,7 @@ function market_clearing(hh,A,r,T,B;tol=1e-5,maxiter=100,bisection_param=0.8)
 end
     
 # This function plots market clearing graph
-function plot_market_clearing(hh,A,T,B)
+function plot_market_clearing(hh,A,T,B,ϕ)
 """
     Aiyagari's classic picture
 
@@ -325,7 +324,7 @@ function plot_market_clearing(hh,A,T,B)
     Kdemand = zeros(length(rgrid));
     
     for (index,r) in enumerate(rgrid)
-        Asset,N = getAggs(hh,A,T;r=r);
+        Asset,N = getAggs(hh,A,T,ϕ;r=r);
         Ksupply[index] = max(Asset-B,0.0);
         Kdemand[index] = N*((r+δ)/(A*θ))^(1/(θ-1));
     end
