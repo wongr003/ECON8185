@@ -1,0 +1,38 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=0.5in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{ dsfont }
+\usepackage{indentfirst}
+
+\graphicspath{ {../figs/} }
+
+
+\begin{document}
+
+	\noindent\textbf{\Large Instructions for PS1} \\
+	
+	1) \textbf{'main.jl'} is the main file that runs all three methods and plots the optimal policy functions.\\
+	
+	2) \textbf{'VFI.jl'} is the file that 
+	
+	\hspace{0.5 cm} 2.1) Specify parameters in the model (Model instance).
+
+	\hspace{0.5 cm} 2.2) Computes steady state level of key variables with nonlinear solver (getSS function).
+	
+	\hspace{0.5 cm} 2.3) Solve $h$ from static problem using intertemporal condition (geth function). Use 'NewtonRoot.jl' subroutine to solve for root.
+	
+	\hspace{0.5 cm} 2.4) Calculate present value in the Bellman equation, given optimal labor choice (getrt function).
+	
+	\hspace{0.5 cm} 2.5) Iterate on the Bellman equation (VFI function).\\
+	
+	3) \textbf{'LQ\_Vaughan.jl'} is the file that 
+	
+	\hspace{0.5 cm} 3.1) Construct important matrices to be used in LQ and Vaughan method, given parameters and steady state variables obtained from 'VFI.jl' (getM function).
+	
+	\hspace{0.5 cm} 3.2) Implement LQ method (LQ function). Use 'Riccati.jl' subroutine to iterate on the Riccati equation.
+	
+	\hspace{0.5 cm} 3.3) Implement Vaughan method (Vaughan function).
+
+\end{document}

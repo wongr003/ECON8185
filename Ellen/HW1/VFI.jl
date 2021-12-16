@@ -22,7 +22,6 @@ Model = @with_kw (θ = 0.35, # capital share
     zGrid = exp.(Tauchen(μ_z,ρ,σ,nz)[1]), # grid for productivity process
     P_z = Tauchen(μ_z,ρ,σ,nz)[2]) # transition matrix
 
-
 ## Get the Steady-State level of capital from a Nonlinear solver
 function getSS(md)
     @unpack θ,ψ,δ,β_hat,γ_n,γ_z = md
