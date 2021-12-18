@@ -1,0 +1,44 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=0.5in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{ dsfont }
+\usepackage{indentfirst}
+
+\graphicspath{ {../figs/} }
+
+
+\begin{document}
+
+	\noindent\textbf{\Large Instructions for PS4} \\
+	
+	1) \textbf{'main.jl'} is the main file that creates 
+	
+	\hspace{0.5 cm} 1.1) a plot for linear basis functions 
+	
+	\hspace{0.5 cm} 1.2) a plot for the optimal saving policy functions with two states of labor (use NewtonRoot\_mult.jl subroutine) \\
+	
+	2) \textbf{'FEM\_aiyagari.jl'} is the file that 
+	
+	\hspace{0.5 cm} 2.1) Create household instance that holds all parameters (Household instance).
+
+	\hspace{0.5 cm} 2.2) Construct a linear basis ($\psi$ function).
+	
+	\hspace{0.5 cm} 2.3) Compute numerical integral (num\_quad function).
+	
+	\hspace{0.5 cm} 2.4) Estimate saving policy function with finite element method (get\_apol function).
+	
+	\hspace{0.5 cm} 2.5) Compute expected value on the R.H.S. of the Euler equation (get\_expected function). 
+	
+	\hspace{0.5 cm} 2.6) Compute residual equation (get\_resid function).
+	
+	\hspace{0.5 cm} 2.7) Compute the numerical integration of weighted residuals with Galerkin weights (weighted\_resid function).
+	
+	\hspace{0.5 cm} 2.8) Stacks up all weighted residuals into a matrix G (G function). \\
+	
+	3) \textbf{'NewtonRoot\_mult.jl'} is the file that 
+	
+	\hspace{0.5 cm} 3.1) Solve for multivariable roots of a function.
+
+\end{document}
